@@ -153,6 +153,14 @@ export function TicketForm({
           </a>
         </p>
       )}
+      {ticket?.clickup && (
+        <p className="tl-hint" style={{ padding: "0 24px" }}>
+          Importiert aus ClickUp:{" "}
+          <a href={ticket.clickup.url} target="_blank" rel="noreferrer">
+            {ticket.clickup.key} ↗
+          </a>
+        </p>
+      )}
       <div hidden={tab !== "details"}>
         <form onSubmit={save} className="tl-form">
           {error && (

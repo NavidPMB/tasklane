@@ -319,12 +319,20 @@ export function WorkspaceManager({
                   </p>
                 )}
                 {details.workspace.can_manage && (
-                  <Link
-                    className="button"
-                    href={`/dashboard/jira?workspace=${selected}`}
-                  >
-                    Jira verbinden & Tickets importieren
-                  </Link>
+                  <>
+                    <Link
+                      className="button"
+                      href={`/dashboard/jira?workspace=${selected}`}
+                    >
+                      Jira verbinden & Tickets importieren
+                    </Link>
+                    <Link
+                      className="tl-secondary"
+                      href={`/dashboard/clickup?workspace=${selected}`}
+                    >
+                      ClickUp mit Zeithistorie importieren
+                    </Link>
+                  </>
                 )}
               </section>
             </>

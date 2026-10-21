@@ -3,6 +3,7 @@ export type Person = {
   name: string;
   email: string;
   inherited?: boolean;
+  is_external?: boolean;
 };
 export type Workspace = {
   id: number;
@@ -48,6 +49,7 @@ export type Ticket = {
   created_at: string;
   updated_at: string;
   jira: { key: string; url: string } | null;
+  clickup: { key: string; url: string } | null;
   logged_minutes: number;
 };
 export type ProjectData = {

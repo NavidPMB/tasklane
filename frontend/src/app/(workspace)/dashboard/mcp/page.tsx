@@ -72,6 +72,11 @@ export default async function McpPage() {
           <p>
             „Weise WEB-3 einem Projektmitglied zu und setze den Tag Frontend.“
           </p>
+          <p>
+            „Prüfe abgeschlossene ClickUp-Aufgaben mit ihrer gesamten
+            Zeithistorie, importiere sie und zeige den historischen Bericht pro
+            Person.“
+          </p>
           <p>„Buche heute 90 Minuten Entwicklung auf WEB-3.“</p>
           <p>
             „Zeige die gebuchte Arbeitszeit dieses Monats pro Person und
@@ -89,6 +94,14 @@ export default async function McpPage() {
               darin verwalten. Jira-Verbindung prüfen, Tickets per JQL suchen
               und ausgewählt importieren. Zugangsdaten vorzugsweise im
               Jira-Panel hinterlegen.
+            </p>
+          </div>
+          <div>
+            <strong>ClickUp & Zeithistorie</strong>
+            <p>
+              Aufgaben auswählen, sämtliche historischen Zeitbuchungen prüfen
+              und den geprüften Stand übernehmen. Frühere Mitwirkende, exakte
+              Dauer und abgeschlossene Aufgaben bleiben auswertbar.
             </p>
           </div>
           <div>

@@ -1,3 +1,5 @@
+import uuid
+
 from django.conf import settings
 from django.db import models
 from django.db.models.functions import Lower
@@ -109,7 +111,10 @@ class Ticket(models.Model):
 
 class TimeEntry(models.Model):
     ticket = models.ForeignKey(Ticket, on_delete=models.PROTECT, related_name='time_entries')
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='time_entries')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='time_entries', null=True)
+    external_person = models.ForeignKey('ClickUpPerson', on_delete=models.PROTECT, null=True, blank=True, related_name='time_entries')
+    clickup_source = models.ForeignKey('ClickUpTimeSource', on_delete=models.PROTECT, null=True, blank=True, related_name='segments')
+    duration_ms = models.PositiveBigIntegerField(null=True, blank=True)
     work_date = models.DateField()
     minutes = models.PositiveSmallIntegerField()
     note = models.TextField(blank=True, max_length=2000)
@@ -118,7 +123,11 @@ class TimeEntry(models.Model):
 
     class Meta:
         ordering = ['-work_date', '-created_at', '-id']
-        constraints = [models.CheckConstraint(condition=models.Q(minutes__gte=1, minutes__lte=1440), name='work_time_minutes_valid')]
+        constraints = [
+            models.CheckConstraint(condition=models.Q(minutes__gte=1, minutes__lte=1440), name='work_time_minutes_valid'),
+            models.CheckConstraint(condition=(models.Q(user__isnull=False, external_person__isnull=True) | models.Q(user__isnull=True, external_person__isnull=False, clickup_source__isnull=False)), name='work_time_person_valid'),
+            models.CheckConstraint(condition=(models.Q(duration_ms__isnull=True, clickup_source__isnull=True) | models.Q(duration_ms__isnull=False, duration_ms__gte=1, duration_ms__lte=86400000, clickup_source__isnull=False)), name='work_time_precision_valid'),
+        ]
         indexes = [
             models.Index(fields=['ticket', 'work_date'], name='work_time_ticket_date'),
             models.Index(fields=['user', 'work_date'], name='work_time_user_date'),
@@ -152,3 +161,67 @@ class JiraIssue(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['connection', 'remote_id'], name='work_jira_issue_unique')]
+
+
+class ClickUpConnection(models.Model):
+    workspace = models.OneToOneField(Workspace, on_delete=models.CASCADE, related_name='clickup_connection')
+    remote_user_id = models.CharField(max_length=100)
+    account_name = models.CharField(max_length=200)
+    credential = models.OneToOneField('integrations.IntegrationCredential', on_delete=models.PROTECT)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class ClickUpProject(models.Model):
+    connection = models.ForeignKey(ClickUpConnection, on_delete=models.CASCADE, related_name='project_links')
+    remote_list_id = models.CharField(max_length=100)
+    remote_team_id = models.CharField(max_length=100)
+    project = models.OneToOneField(Project, on_delete=models.CASCADE, related_name='clickup_source')
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['connection', 'remote_list_id'], name='work_clickup_list_unique')]
+
+
+class ClickUpTask(models.Model):
+    connection = models.ForeignKey(ClickUpConnection, on_delete=models.CASCADE, related_name='task_links')
+    remote_id = models.CharField(max_length=100)
+    ticket = models.OneToOneField(Ticket, on_delete=models.CASCADE, related_name='clickup_source')
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['connection', 'remote_id'], name='work_clickup_task_unique')]
+
+
+class ClickUpPerson(models.Model):
+    connection = models.ForeignKey(ClickUpConnection, on_delete=models.CASCADE, related_name='people')
+    remote_id = models.CharField(max_length=100)
+    name = models.CharField(max_length=200)
+    email = models.EmailField(blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['connection', 'remote_id'], name='work_clickup_person_unique')]
+
+
+class ClickUpTimeSource(models.Model):
+    connection = models.ForeignKey(ClickUpConnection, on_delete=models.CASCADE, related_name='time_sources')
+    remote_id = models.CharField(max_length=100)
+    ticket = models.ForeignKey(Ticket, on_delete=models.PROTECT, related_name='clickup_time_sources')
+    person = models.ForeignKey(ClickUpPerson, on_delete=models.PROTECT)
+    start_ms = models.BigIntegerField()
+    end_ms = models.BigIntegerField()
+    duration_ms = models.PositiveBigIntegerField()
+    description = models.TextField(blank=True)
+    fingerprint = models.CharField(max_length=64)
+    imported_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['connection', 'remote_id'], name='work_clickup_time_unique')]
+
+
+class ClickUpImportBatch(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    connection = models.ForeignKey(ClickUpConnection, on_delete=models.CASCADE, related_name='import_batches')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    payload = models.JSONField(default=dict)
+    result = models.JSONField(default=dict)
+    expires_at = models.DateTimeField()
+    imported_at = models.DateTimeField(null=True)
+    created_at = models.DateTimeField(auto_now_add=True)

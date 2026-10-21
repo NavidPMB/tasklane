@@ -14,6 +14,7 @@ Built with **Django, Next.js and PostgreSQL**. The interface is currently in **G
 ## What you can do
 
 - Organize projects in shared workspaces, with inherited team access across all current and future projects.
+- Bring completed ClickUp tasks with their full historical time entries into Tasklane, including former contributors and exact durations.
 - Import selected Jira Cloud tickets with encrypted credentials, JQL previews and automatic project creation.
 - Create multiple projects with separate tags, workflows and optional project-only guests.
 - Organize work into epics, tickets and nested subtickets.
@@ -24,7 +25,7 @@ Built with **Django, Next.js and PostgreSQL**. The interface is currently in **G
 - Search and combine filters for status, assignee, tag, epic and ticket type.
 - Start with four status categories: **Open → In progress → Done → Closed**.
 - Insert and reorder custom statuses within those categories. Board columns, selectors and MCP use the same live status list.
-- Connect a local MCP client to **34 tools** for projects, members, tickets, tags and statuses.
+- Connect a local MCP client to **40 tools** for projects, members, tickets, tags and statuses.
 - Use the built-in wiki with public, member-only and superuser-only articles.
 
 ## Quick start
@@ -117,7 +118,7 @@ make mcp-check MCP_EMAIL=you@example.com
 The check performs MCP initialization, discovers the tools and makes a read-only `list_projects` call. An empty project list is fine:
 
 ```text
-MCP OK: 34 tools discovered, 0 accessible projects.
+MCP OK: 40 tools discovered, 0 accessible projects.
 ```
 
 The server needs an **existing active account**. It rechecks account status and project access on every call. The email selects the account for a trusted local process; it is not a remote authentication token. This release does not expose an HTTP MCP endpoint.
@@ -137,6 +138,7 @@ Ask the assistant to call `list_projects` and `get_project` or `list_statuses` f
 | Area | Tools |
 | --- | --- |
 | Workspaces | `list_workspaces`, `create_workspace`, `get_workspace`, `update_workspace`, `add_workspace_member`, `remove_workspace_member` |
+| ClickUp | `get_clickup_connection`, `configure_clickup`, `list_clickup_locations`, `preview_clickup`, `prepare_clickup_import`, `import_clickup` |
 | Jira Cloud | `get_jira_connection`, `configure_jira`, `preview_jira`, `import_jira` |
 | Projects | `list_projects`, `get_project`, `create_project`, `update_project` |
 | Team | `add_project_member`, `remove_project_member` |
@@ -162,6 +164,20 @@ Imports are atomic and repeatable: existing imported issues are skipped, preserv
 ![Jira Cloud import preview with a workspace and selected tickets](docs/images/jira-import.png)
 
 See the [workspace and Jira guide](docs/workspaces-jira.md), also available at `/wiki/tasklane-workspaces-jira` after signing in. Atlassian documents [API-token setup](https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/) and [JQL search](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/).
+
+## ClickUp import with historical time tracking
+
+Open **ClickUp-Import**, choose the target Tasklane workspace and save your personal ClickUp API token. Browse the source workspace, Space, folder and list, then select up to **20 tasks per import**, including completed tasks and subtasks. Selection can span multiple lists; lists become projects automatically. Archived locations and tasks can also be selected.
+
+**Tickets & gesamte Zeithistorie prüfen** fetches all available historical time entries, explicitly including previous years and team contributors. It compares each task's individual bookings with ClickUp's reported time total. Missing permissions, mismatches or running timers stop the import before local tickets are created. The review shows people, dates and total time; the verified snapshot remains available for 30 minutes.
+
+Your ClickUp account needs Workspace Owner/Admin access to retrieve other people's time entries, as documented in the [ClickUp time API](https://developer.clickup.com/reference/gettimeentrieswithinadaterange). Tokens are verified and stored in the central encrypted credential model. Only the Tasklane workspace owner can configure and perform imports.
+
+**Tickets und Zeiten importieren** saves the reviewed snapshot atomically. Original durations are preserved in milliseconds, along with the original contributor, start-date attribution and notes. Matching active project members are linked by email. Former or unknown people remain historical contributors without creating accounts or granting access. Imported bookings are read-only source history.
+
+Repeated imports skip existing tasks and time-entry IDs, and can add missing new bookings without overwriting local ticket edits. Changed previously imported source bookings produce a conflict instead of silently changing history. **Importierte Zeithistorie im Bericht öffnen** opens the correct historical date range, with time per original person, project, ticket and day. CSV also includes exact milliseconds and source details. Tasks and times in ClickUp remain available; this is a copy, not continuous synchronization.
+
+See the [ClickUp user guide](docs/clickup-import.md), `/wiki/tasklane-clickup-import`, and the [technical guide](docs/development/clickup-import.md). No ClickUp credentials are required for running Tasklane itself.
 
 ## Time tracking and team reports
 
@@ -229,7 +245,7 @@ frontend/src/
 scripts/              Setup, combined dev server and MCP helpers
 ```
 
-The browser API and MCP server share the same validation and project access rules. The workspace owner manages workspace sharing and Jira; project and workspace owners manage project settings. Effective project members manage tickets, statuses and tags. Staff privileges alone do not grant access to other people's projects.
+The browser API and MCP server share the same validation and project access rules. The workspace owner manages workspace sharing, Jira and ClickUp; project and workspace owners manage project settings. Effective project members manage tickets, statuses and tags. Staff privileges alone do not grant access to other people's projects.
 
 More documentation: [user guide](docs/tasklane-guide.md), [developer guide](docs/DEVELOPMENT.md), [MCP internals](docs/development/tasklane-mcp.md), and [contributing](CONTRIBUTING.md). Detailed in-app documentation and the current interface are in German.
 

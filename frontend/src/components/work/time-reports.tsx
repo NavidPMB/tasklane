@@ -14,9 +14,21 @@ import { Icon } from "@/components/ui/icon";
 import { WorkDialog } from "./dialog";
 import { TicketTime, type TimeTicket } from "./ticket-time";
 
-export function TimeReports({ initialProject }: { initialProject?: number }) {
+export function TimeReports({
+  initialProject,
+  initialWorkspace,
+  initialFrom,
+  initialTo,
+}: {
+  initialProject?: number;
+  initialWorkspace?: number;
+  initialFrom?: string;
+  initialTo?: string;
+}) {
   const [spaces, setSpaces] = useState<Workspace[]>([]);
-  const [workspace, setWorkspace] = useState("");
+  const [workspace, setWorkspace] = useState(
+    initialWorkspace ? String(initialWorkspace) : "",
+  );
   const [projects, setProjects] = useState<Project[]>([]);
   const [project, setProject] = useState(
     initialProject ? String(initialProject) : "",
@@ -24,9 +36,11 @@ export function TimeReports({ initialProject }: { initialProject?: number }) {
   const [person, setPerson] = useState("");
   const [from, setFrom] = useState(() => {
     const now = new Date();
-    return localDate(new Date(now.getFullYear(), now.getMonth(), 1));
+    return (
+      initialFrom || localDate(new Date(now.getFullYear(), now.getMonth(), 1))
+    );
   });
-  const [to, setTo] = useState(localDate());
+  const [to, setTo] = useState(initialTo || localDate());
   const [report, setReport] = useState<TimeReport | null>(null),
     [entries, setEntries] = useState<TimeEntries | null>(null);
   const [error, setError] = useState(""),
@@ -200,7 +214,11 @@ export function TimeReports({ initialProject }: { initialProject?: number }) {
             {report?.people.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
-                {p.is_active ? "" : " · inaktiv"}
+                {p.is_external
+                  ? " · ClickUp-Historie"
+                  : p.is_active
+                    ? ""
+                    : " · inaktiv"}
               </option>
             ))}
           </select>
@@ -489,7 +507,9 @@ export function TimeReports({ initialProject }: { initialProject?: number }) {
                               Bearbeiten
                             </button>
                           ) : (
-                            <span className="tl-hint">Nur lesbar</span>
+                            <span className="tl-hint">
+                              {entry.source ? "ClickUp-Historie" : "Nur lesbar"}
+                            </span>
                           )}
                         </td>
                       </tr>

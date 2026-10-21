@@ -275,6 +275,12 @@ export function TicketTime({
                 </div>
               )}
             </div>
+            {entry.source && (
+              <p className="tl-hint">
+                ClickUp-Historie · Originalperson: {entry.source.person} ·
+                Quell-ID {entry.source.id}
+              </p>
+            )}
             {entry.note && <p>{entry.note}</p>}
           </article>
         ))}

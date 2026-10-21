@@ -6,13 +6,13 @@ import re
 
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Q, Sum, Value
-from django.db.models.functions import Coalesce
+from django.db.models import Count, Q
 from django.utils import timezone
 from jsonschema import Draft202012Validator
 
-from .models import Project, Status, Tag, Ticket, TimeEntry, Workspace
+from .models import Project, Status, Tag, Ticket, TimeEntry, Workspace, ClickUpPerson
 
+from .time_values import minute_sum, external_person_data
 from .errors import WorkError
 from .access import accessible_projects, project_members, person
 
@@ -53,7 +53,7 @@ def statuses_for(project):
 
 
 def ticket_query(project):
-    return project.tickets.select_related('project', 'jira_source__connection').prefetch_related('tags', 'assignees').annotate(logged_minutes=Coalesce(Sum('time_entries__minutes'), Value(0)))
+    return project.tickets.select_related('project', 'jira_source__connection', 'clickup_source').prefetch_related('tags', 'assignees').annotate(logged_minutes=minute_sum('time_entries__'))
 
 
 def ticket_data(ticket):
@@ -67,7 +67,8 @@ def ticket_data(ticket):
         'due_date': ticket.due_date.isoformat() if ticket.due_date else None,
         'created_at': ticket.created_at.isoformat(), 'updated_at': ticket.updated_at.isoformat(),
         'jira': jira_ticket_source(ticket),
-        'logged_minutes': logged_minutes if logged_minutes is not None else ticket.time_entries.aggregate(total=Sum('minutes'))['total'] or 0,
+        'clickup': clickup_ticket_source(ticket),
+        'logged_minutes': logged_minutes if logged_minutes is not None else ticket.time_entries.aggregate(total=minute_sum())['total'],
     }
 
 
@@ -78,6 +79,15 @@ def jira_ticket_source(ticket):
     except JiraIssue.DoesNotExist:
         return None
     return {'key': source.remote_key, 'url': source.connection.base_url + '/browse/' + source.remote_key} if source else None
+
+
+def clickup_ticket_source(ticket):
+    from .models import ClickUpTask
+    try:
+        source = ticket.clickup_source
+    except ClickUpTask.DoesNotExist:
+        return None
+    return {'key': source.remote_id, 'url': 'https://app.clickup.com/t/' + source.remote_id}
 
 
 def nonblank(value):
@@ -338,9 +348,12 @@ def time_entry_data(entry, user):
         'id': entry.pk, 'project_id': entry.ticket.project_id,
         'project_name': entry.ticket.project.name,
         'ticket_id': entry.ticket_id, 'ticket_key': f'{entry.ticket.project.key}-{entry.ticket.number}',
-        'ticket_title': entry.ticket.title, 'user': person(entry.user),
-        'work_date': entry.work_date.isoformat(), 'minutes': entry.minutes, 'note': entry.note,
-        'can_edit': entry.user_id == user.pk, 'updated_at': entry.updated_at.isoformat(),
+        'ticket_title': entry.ticket.title, 'user': person(entry.user) if entry.user_id else external_person_data(entry.external_person),
+        'work_date': entry.work_date.isoformat(), 'minutes': entry.duration_ms / 60000 if entry.duration_ms is not None else entry.minutes,
+        'duration_ms': entry.duration_ms if entry.duration_ms is not None else entry.minutes * 60000,
+        'note': entry.clickup_source.description if entry.clickup_source_id else entry.note,
+        'source': {'provider': 'clickup', 'id': entry.clickup_source.remote_id, 'person': entry.clickup_source.person.name} if entry.clickup_source_id else None,
+        'can_edit': entry.user_id == user.pk and not entry.clickup_source_id, 'updated_at': entry.updated_at.isoformat(),
     }
 
 
@@ -359,9 +372,11 @@ def create_time_entry(user, project_id, ticket_id, work_date, minutes, note=''):
 
 def own_time_entry(user, project_id, entry_id, expected_updated_at=None):
     project = project_for(user, project_id)
-    entry = TimeEntry.objects.select_related('ticket__project', 'user').filter(ticket__project=project, pk=entry_id).first()
+    entry = TimeEntry.objects.select_related('ticket__project', 'user', 'external_person', 'clickup_source__person').filter(ticket__project=project, pk=entry_id).first()
     if not entry:
         raise WorkError('Zeitbuchung nicht gefunden.', 404)
+    if entry.clickup_source_id:
+        raise WorkError('Importierte ClickUp-Zeiten bleiben als Quellhistorie unverändert.', 403)
     if entry.user_id != user.pk:
         raise WorkError('Zeitbuchungen können nur von der Person geändert werden, die sie erfasst hat.', 403)
     if expected_updated_at is not None and entry.updated_at.isoformat() != expected_updated_at:
@@ -395,13 +410,13 @@ def time_scope(user, project_id=None, ticket_id=None, user_id=None, date_from=No
         from .workspaces import workspace_for
         workspace_for(user, workspace_id)
         projects = projects.filter(workspace_id=workspace_id)
-    entries = TimeEntry.objects.filter(ticket__project__in=projects).select_related('ticket__project', 'user')
+    entries = TimeEntry.objects.filter(ticket__project__in=projects).select_related('ticket__project', 'user', 'external_person', 'clickup_source__person')
     if ticket_id is not None:
         if not Ticket.objects.filter(project__in=projects, pk=ticket_id).exists():
             raise WorkError('Ticket nicht gefunden.', 404)
         entries = entries.filter(ticket_id=ticket_id)
     if user_id is not None:
-        entries = entries.filter(user_id=user_id)
+        entries = entries.filter(user_id=user_id) if user_id > 0 else entries.filter(external_person_id=-user_id)
     start = parse_work_date(date_from) if date_from else None
     end = parse_work_date(date_to) if date_to else None
     if start and end and start > end:
@@ -415,7 +430,7 @@ def time_scope(user, project_id=None, ticket_id=None, user_id=None, date_from=No
 
 def list_time_entries(user, project_id=None, ticket_id=None, user_id=None, date_from=None, date_to=None, offset=0, limit=100, workspace_id=None):
     _, entries = time_scope(user, project_id, ticket_id, user_id, date_from, date_to, workspace_id)
-    totals = entries.aggregate(total_minutes=Coalesce(Sum('minutes'), Value(0)), total=Count('id'))
+    totals = entries.aggregate(total_minutes=minute_sum(), total=Count('id'))
     return {**totals, 'entries': [time_entry_data(entry, user) for entry in entries[offset:offset + limit]], 'offset': offset, 'limit': limit}
 
 
@@ -431,14 +446,16 @@ def get_time_report(user, project_id=None, user_id=None, date_from=None, date_to
         Q(work_projects__in=projects) | Q(owned_projects__in=projects) | Q(workspaces__projects__in=projects) | Q(owned_workspaces__projects__in=projects) | Q(time_entries__ticket__project__in=projects)
     ).distinct().order_by('email')
     people_data = [{**person(p), 'is_active': p.is_active} for p in people]
-    grouped = {row['user_id']: row for row in entries.order_by().values('user_id').annotate(minutes=Sum('minutes'), entry_count=Count('id'), ticket_count=Count('ticket_id', distinct=True), day_count=Count('work_date', distinct=True))}
-    users = [{**p, **{k: v for k, v in grouped.get(p['id'], {'minutes': 0, 'entry_count': 0, 'ticket_count': 0, 'day_count': 0}).items() if k != 'user_id'}} for p in people_data if user_id is None or p['id'] == user_id]
-    totals = entries.aggregate(total_minutes=Coalesce(Sum('minutes'), Value(0)), entry_count=Count('id'), ticket_count=Count('ticket_id', distinct=True), people_count=Count('user_id', distinct=True))
-    by_project = [{'id': row['ticket__project_id'], 'name': row['ticket__project__name'], 'key': row['ticket__project__key'], 'minutes': row['minutes']} for row in entries.order_by('ticket__project__name').values('ticket__project_id', 'ticket__project__name', 'ticket__project__key').annotate(minutes=Sum('minutes'))]
-    by_ticket = [{'id': row['ticket_id'], 'key': f"{row['ticket__project__key']}-{row['ticket__number']}", 'title': row['ticket__title'], 'project_id': row['ticket__project_id'], 'minutes': row['minutes']} for row in entries.order_by('ticket__project__key', 'ticket__number').values('ticket_id', 'ticket__project__key', 'ticket__number', 'ticket__title', 'ticket__project_id').annotate(minutes=Sum('minutes'))]
+    external = ClickUpPerson.objects.filter(time_entries__ticket__project__in=projects).distinct().order_by('name', 'id')
+    people_data += [external_person_data(p) for p in external]
+    grouped = {(row['user_id'] or -row['external_person_id']): row for row in entries.order_by().values('user_id', 'external_person_id').annotate(minutes=minute_sum(), entry_count=Count('id'), ticket_count=Count('ticket_id', distinct=True), day_count=Count('work_date', distinct=True))}
+    users = [{**p, **{k: v for k, v in grouped.get(p['id'], {'minutes': 0, 'entry_count': 0, 'ticket_count': 0, 'day_count': 0}).items() if k not in ('user_id', 'external_person_id')}} for p in people_data if user_id is None or p['id'] == user_id]
+    totals = entries.aggregate(total_minutes=minute_sum(), entry_count=Count('id'), ticket_count=Count('ticket_id', distinct=True), people_count=Count('user_id', distinct=True) + Count('external_person_id', distinct=True))
+    by_project = [{'id': row['ticket__project_id'], 'name': row['ticket__project__name'], 'key': row['ticket__project__key'], 'minutes': row['minutes']} for row in entries.order_by('ticket__project__name').values('ticket__project_id', 'ticket__project__name', 'ticket__project__key').annotate(minutes=minute_sum())]
+    by_ticket = [{'id': row['ticket_id'], 'key': f"{row['ticket__project__key']}-{row['ticket__number']}", 'title': row['ticket__title'], 'project_id': row['ticket__project_id'], 'minutes': row['minutes']} for row in entries.order_by('ticket__project__key', 'ticket__number').values('ticket_id', 'ticket__project__key', 'ticket__number', 'ticket__title', 'ticket__project_id').annotate(minutes=minute_sum())]
     return {**totals, 'date_from': date_from, 'date_to': date_to, 'people': people_data, 'users': users,
             'projects': by_project, 'tickets': by_ticket,
-            'days': [{'date': row['work_date'].isoformat(), 'minutes': row['minutes']} for row in entries.order_by('work_date').values('work_date').annotate(minutes=Sum('minutes'))]}
+            'days': [{'date': row['work_date'].isoformat(), 'minutes': row['minutes']} for row in entries.order_by('work_date').values('work_date').annotate(minutes=minute_sum())]}
 
 
 def export_time_report(user, project_id=None, user_id=None, date_from=None, date_to=None, workspace_id=None):
@@ -447,13 +464,13 @@ def export_time_report(user, project_id=None, user_id=None, date_from=None, date
     output = StringIO()
     output.write('\ufeff')
     writer = csv.writer(output, delimiter=';')
-    writer.writerow(['Datum', 'Projekt', 'Ticket', 'Titel', 'Person', 'E-Mail', 'Minuten', 'Notiz'])
+    writer.writerow(['Datum', 'Projekt', 'Ticket', 'Titel', 'Person', 'E-Mail', 'Minuten', 'Notiz', 'Dauer (ms)', 'Quelle', 'Quell-ID', 'Originalperson'])
     def safe(value):
         text = str(value)
         return "'" + text if text.lstrip().startswith(('=', '+', '-', '@')) or text.startswith(('\t', '\r', '\n')) else text
     for entry in entries.order_by('work_date', 'user__email', 'id').iterator(chunk_size=500):
         row = time_entry_data(entry, user)
-        writer.writerow([row['work_date'], safe(row['project_name']), row['ticket_key'], safe(row['ticket_title']), safe(row['user']['name']), safe(row['user']['email']), row['minutes'], safe(row['note'])])
+        writer.writerow([row['work_date'], safe(row['project_name']), row['ticket_key'], safe(row['ticket_title']), safe(row['user']['name']), safe(row['user']['email']), row['minutes'], safe(row['note']), row['duration_ms'], row['source']['provider'] if row['source'] else '', row['source']['id'] if row['source'] else '', safe(row['source']['person']) if row['source'] else ''])
     return {'filename': f'tasklane-zeiten-{date_from}-{date_to}.csv', 'csv': output.getvalue()}
 
 
@@ -504,12 +521,12 @@ register(delete_ticket, 'Ticket ohne Untertickets löschen. Tickets mit Kindern 
 
 DATE = {'type': 'string', 'pattern': r'^\d{4}-\d{2}-\d{2}$'}
 TIME_FIELDS = {'work_date': DATE, 'minutes': {'type': 'integer', 'minimum': 1, 'maximum': 1440}, 'note': TEXT(2000)}
-TIME_FILTERS = {'workspace_id': ID, 'project_id': ID, 'user_id': ID, 'date_from': DATE, 'date_to': DATE}
+TIME_FILTERS = {'workspace_id': ID, 'project_id': ID, 'user_id': {'type': 'integer', 'not': {'const': 0}}, 'date_from': DATE, 'date_to': DATE}
 register(create_time_entry, 'Eigene Arbeitszeit auf ein Ticket buchen: Datum (nicht in der Zukunft), ganze Minuten (1–1440) und optionale Notiz. Person ist immer das angemeldete Konto.', {'ticket_id': ID, **TIME_FIELDS}, ['ticket_id', 'work_date', 'minutes'], write=True)
 register(update_time_entry, 'Eigene Zeitbuchung korrigieren. Fremde Buchungen können auch von der Projektleitung nicht verändert werden. expected_updated_at schützt vor Konflikten.', {'entry_id': ID, 'expected_updated_at': TEXT(40), **TIME_FIELDS}, ['entry_id'], write=True)
 register(delete_time_entry, 'Eigene Zeitbuchung löschen; fremde Buchungen bleiben geschützt.', {'entry_id': ID, 'expected_updated_at': TEXT(40)}, ['entry_id'], write=True)
 register(list_time_entries, 'Zeitbuchungen mit Projekt, Ticket, Person, Datum, Minuten und Notiz lesen. Filter optional, ohne Zeitraum alle Buchungen; paginiert. Nur zugängliche Projekte.', {**TIME_FILTERS, 'ticket_id': ID, 'offset': {'type': 'integer', 'minimum': 0}, 'limit': {'type': 'integer', 'minimum': 1, 'maximum': 200}}, project=False)
-register(get_time_report, 'Arbeitszeit pro Person, Projekt, Ticket und Tag summieren. Ohne Projektfilter alle zugänglichen Projekte. Zeitraum inklusive beider Tage; Standard ist Monatsbeginn bis heute. Historische Buchungen entfernter Mitglieder bleiben enthalten.', TIME_FILTERS, project=False)
+register(get_time_report, 'Arbeitszeit pro Person, Projekt, Ticket und Tag summieren. Ohne Projektfilter alle zugänglichen Projekte. Zeitraum inklusive beider Tage; Standard ist Monatsbeginn bis heute. Historische Buchungen entfernter Mitglieder bleiben enthalten. Historische ClickUp-Personen ohne Konto haben negative Personen-IDs; IDs aus diesem Bericht lesen.', TIME_FILTERS, project=False)
 register(export_time_report, 'Zeitbericht als UTF-8-CSV mit Semikolon exportieren. Dieselben Projekt-, Personen- und Zeitraumfilter wie get_time_report. Enthält die einzelnen Buchungen; verändert keine Daten.', TIME_FILTERS, project=False)
 
 
@@ -521,8 +538,8 @@ def execute(user, action, arguments):
         raise WorkError('Unbekannte Aktion.')
     errors = list(Draft202012Validator(operation['inputSchema']).iter_errors(arguments))
     if errors:
-        if action == 'configure_jira':
-            raise WorkError('Ungültige Verbindungsdaten. Bitte Cloud-Adresse, E-Mail und API-Token prüfen.')
+        if action in ('configure_jira', 'configure_clickup'):
+            raise WorkError('Ungültige Verbindungsdaten. Bitte die Felder und den API-Token prüfen.')
         error = errors[0]
         location = '.'.join(map(str, error.path)) or 'Parameter'
         raise WorkError(f'Ungültige Eingabe ({location}): {error.message}')
@@ -548,3 +565,6 @@ from .workspaces import register_operations as register_workspaces
 from .jira import register_operations as register_jira
 register_workspaces(register, ID, NAME, TEXT)
 register_jira(register, ID, NAME, TEXT)
+
+from .clickup import register_operations as register_clickup
+register_clickup(register, ID, NAME, TEXT)

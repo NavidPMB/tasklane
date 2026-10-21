@@ -40,7 +40,7 @@ Beispiel für einen stdio-Client; absolute Pfade an den Checkout anpassen:
 
 Die angemeldete Seite `/dashboard/mcp` erzeugt diese Konfiguration mit lokalen Pfaden und der eigenen E-Mail. Der Prozess ist eine lokale Verbindung für einen vertrauenswürdigen Host mit Dateisystem- und Datenbankzugriff. Es wird kein HTTP-MCP-Endpunkt und kein Fernzugriff veröffentlicht; dafür wäre ein separates Authentifizierungskonzept erforderlich. Tasklane-Anmeldedaten und Sitzungstokens gehören nicht in MCP-Argumente. Jira-Zugangsdaten vorzugsweise im Dashboard einrichten; `configure_jira` ist ausschließlich ein schreibbarer Integrationseinstieg und gibt keine Tokens zurück.
 
-Der Server bietet 34 Werkzeuge für Projekte, Mitgliedschaft, Status, Tags und Tickets. `list_projects` → `get_project` / `list_statuses` liefert den aktuellen Kontext. `create_ticket` mit `kind: "epic"` erstellt ein Epic; `parent_id` verknüpft Untertickets. `assignee_ids` und `tag_ids` sind ersetzende Listen. Bei `update_ticket` bleiben ausgelassene Felder unverändert; `null` löst Eltern-Ticket oder Datum. Domainfehler werden als MCP-Toolfehler zurückgegeben. Protokollausgaben laufen über stdout, Diagnose über stderr.
+Der Server bietet 40 Werkzeuge für Projekte, Mitgliedschaft, Status, Tags und Tickets. `list_projects` → `get_project` / `list_statuses` liefert den aktuellen Kontext. `create_ticket` mit `kind: "epic"` erstellt ein Epic; `parent_id` verknüpft Untertickets. `assignee_ids` und `tag_ids` sind ersetzende Listen. Bei `update_ticket` bleiben ausgelassene Felder unverändert; `null` löst Eltern-Ticket oder Datum. Domainfehler werden als MCP-Toolfehler zurückgegeben. Protokollausgaben laufen über stdout, Diagnose über stderr.
 
 ## Prüfen und Wiki
 
@@ -50,3 +50,6 @@ Migration `work.0002_wiki_guides` veröffentlicht eingefrorene Ausgangsfassungen
 
 
 Workspace-Vererbung und Jira-Import sind in [Workspaces und Jira entwickeln](workspaces-jira.md) dokumentiert. Zusätzliche Werkzeuge: sechs Workspace-Aktionen und vier Jira-Aktionen; für Projektlisten und Zeitberichte ist `workspace_id` als Filter verfügbar.
+
+
+ClickUp-Aufgaben und vollständige historische Zeitbuchungen werden mit sechs zusätzlichen Aktionen angebunden. `prepare_clickup_import` erstellt einen geprüften Stand und `import_clickup` übernimmt dessen `batch_id` atomar. Details: [ClickUp-Historienimport](clickup-import.md). Zugangsdaten vorzugsweise im Dashboard einrichten.

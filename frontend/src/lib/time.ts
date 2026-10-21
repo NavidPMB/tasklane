@@ -10,6 +10,8 @@ export type TimeEntry = {
   user: Person;
   work_date: string;
   minutes: number;
+  duration_ms: number;
+  source: { provider: "clickup"; id: string; person: string } | null;
   note: string;
   can_edit: boolean;
   updated_at: string;
@@ -47,9 +49,18 @@ export type TimeReport = {
   days: { date: string; minutes: number }[];
 };
 export function formatMinutes(minutes: number) {
-  const hours = Math.floor(minutes / 60),
-    rest = minutes % 60;
-  return hours ? `${hours} h${rest ? ` ${rest} min` : ""}` : `${rest} min`;
+  const totalMs = Math.round(minutes * 60000);
+  const hours = Math.floor(totalMs / 3600000);
+  const mins = Math.floor((totalMs % 3600000) / 60000);
+  const seconds = (totalMs % 60000) / 1000;
+  const parts = [
+    hours ? `${hours} h` : "",
+    mins ? `${mins} min` : "",
+    seconds
+      ? `${new Intl.NumberFormat("de-DE", { maximumFractionDigits: 3 }).format(seconds)} s`
+      : "",
+  ].filter(Boolean);
+  return parts.join(" ") || "0 min";
 }
 export function localDate(date = new Date()) {
   return date.toLocaleDateString("sv-SE");

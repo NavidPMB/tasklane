@@ -19,6 +19,7 @@ export const navigation: Record<
         icon: "users",
       },
       { href: "/dashboard/jira", label: "Jira-Import", icon: "arrow" },
+      { href: "/dashboard/clickup", label: "ClickUp-Import", icon: "clock" },
       { href: "/dashboard/projects", label: "Projekte", icon: "layers" },
       { href: "/dashboard/time", label: "Zeiten & Berichte", icon: "clock" },
       { href: "/dashboard/mcp", label: "MCP-Anbindung", icon: "terminal" },

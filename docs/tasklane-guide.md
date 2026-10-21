@@ -35,3 +35,6 @@ Unter **Dashboard → MCP-Anbindung** steht eine Konfiguration für lokale MCP-C
 
 
 Workspaces und Jira-Import: [Ausführliche Anleitung](workspaces-jira.md), auch unter `/wiki/tasklane-workspaces-jira`. Workspace-Mitglieder haben automatisch Zugriff auf alle aktuellen und künftigen Projekte. Unter **Jira-Import** lassen sich ausgewählte Jira-Cloud-Tickets inklusive automatisch angelegter Projekte übernehmen.
+
+
+Unter **ClickUp-Import** kannst du abgeschlossene Aufgaben einschließlich historischer Arbeitszeiten übernehmen. [ClickUp-Anleitung](clickup-import.md), auch unter `/wiki/tasklane-clickup-import`.

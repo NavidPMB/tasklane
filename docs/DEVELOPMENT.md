@@ -32,6 +32,14 @@ Workspace-Mitglieder erhalten Zugriff auf bestehende und zukünftige Projekte. A
 
 Die Wiki-Ausgangsfassungen unter `/wiki/tasklane-workspaces-jira` (`registered`) und `/wiki/tasklane-workspaces-jira-entwicklung` (`internal`) werden durch `work.0007` eingefroren angelegt, ohne bestehende Inhalte zu überschreiben. Automatisierte Jira-Tests verwenden simulierte Netzwerkantworten; ein echter Import benötigt eigene Jira-Cloud-Zugangsdaten.
 
+## ClickUp und historische Arbeitszeit
+
+[Benutzeranleitung](clickup-import.md) und [technische Anleitung](development/clickup-import.md) dokumentieren den Import abgeschlossener Aufgaben samt Zeitbuchungen aus allen Jahren. Sechs zusätzliche API-/MCP-Aktionen prüfen und übernehmen maximal 20 Aufgaben je Durchlauf. Netzwerkabruf und Vollständigkeitsprüfung laufen vor der atomaren Übernahme eines 30 Minuten gültigen Importplans. Zugangsdaten bleiben ausschließlich im zentralen verschlüsselten Integrationsmodell.
+
+Ursprüngliche Personen ohne passendes aktives Projektkonto bleiben historische Mitwirkende ohne Login oder Projektfreigabe. Zeitberichte unterstützen deren negative Personen-IDs; normale Konto-IDs bleiben positiv. Importierte Arbeitszeit ist schreibgeschützte Quellhistorie und verwendet exakte Millisekunden statt gerundeter Kompatibilitätsminuten. Alle Summen verwenden `time_values.minute_sum`; die bisherigen manuellen Buchungen und ihre Rechte bleiben erhalten. CSV ergänzt Originalperson, Quelle und Dauer in Millisekunden. Der Ergebnislink übergibt den historischen Zeitraum an den Bericht.
+
+Die Migrationen `work.0008` und `0009` ergänzen Quellmodelle und Zeit-Constraints. `work.0010` erstellt eingefrorene Wiki-Anleitungen mit Sichtbarkeit `registered` bzw. `internal`, ohne bestehende Artikel zu überschreiben. Die Tests verwenden simulierte ClickUp-Antworten; Live-Übernahmen benötigen eigene Zugangsdaten mit den nötigen ClickUp-Teamzeitrechten. Nach Änderungen `make test` und `make check` ausführen.
+
 ## Passwortanmeldung
 
 `POST /api/auth/login/` in `accounts.views.password_login` nimmt ausschließlich ein JSON-Objekt mit `email` und `password` an. Die Anfrage benötigt den CSRF-Token aus `GET /api/auth/session/` sowie das zugehörige Cookie. Erfolgreiche Anmeldung nutzt Django-Sitzungen mit HttpOnly-Cookies und rotiert Sitzungsschlüssel und CSRF-Token. Der Client wechselt anschließend auf `/dashboard`; Passwörter und Tokens werden nicht im Browser-Speicher abgelegt.

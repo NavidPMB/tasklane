@@ -35,3 +35,8 @@ Beispiele für den Assistenten:
 - „Exportiere den gefilterten Zeitbericht als CSV.“
 
 Die zugehörigen Werkzeuge heißen `create_time_entry`, `update_time_entry`, `delete_time_entry`, `list_time_entries`, `get_time_report` und `export_time_report`. Datum wird als `JJJJ-MM-TT`, Dauer als ganze `minutes` angegeben. Die Buchung gehört immer dem Konto, mit dem der MCP-Prozess verbunden ist.
+
+
+## Historie aus ClickUp
+
+Der [ClickUp-Import](clickup-import.md) übernimmt auch Zeitbuchungen abgeschlossener Aufgaben aus früheren Jahren. Exakte Dauern, ursprüngliche Personen und Quellnotizen bleiben erhalten. Importierte Buchungen sind als Quellhistorie nur lesbar; eigene neue Buchungen können wie bisher ergänzt werden. Historische Mitwirkende ohne Konto sind im Personenfilter als ClickUp-Historie auswählbar. Nutze nach dem Import den Ergebnislink, um den passenden historischen Zeitraum zu öffnen. CSV enthält zusätzlich exakte Millisekunden, Quelle, Quell-ID und Originalperson.

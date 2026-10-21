@@ -47,7 +47,7 @@ def create_server(user_email):
 
     return Server(
         'tasklane', version='0.1.0',
-        instructions='Verwalte nur Projekte des konfigurierten Benutzers. Zuerst list_workspaces, list_projects und get_project/list_statuses lesen. Projekte gehören zu Workspaces; bei gleichen Kürzeln zuerst den Workspace klären. Jira-Zugangsdaten vorzugsweise im Dashboard einrichten. Status-IDs, Mitglieder und Tags sind projektspezifisch und können sich ändern. Bei Änderungen erneut abrufen; keine Namen oder IDs raten. Epics haben keine Eltern; Tickets können Untertickets enthalten.',
+        instructions='Verwalte nur Projekte des konfigurierten Benutzers. Zuerst list_workspaces, list_projects und get_project/list_statuses lesen. Projekte gehören zu Workspaces; bei gleichen Kürzeln zuerst den Workspace klären. Jira- und ClickUp-Zugangsdaten vorzugsweise im Dashboard einrichten. ClickUp-Historie zuerst mit prepare_clickup_import prüfen; import_clickup übernimmt nur den geprüften Plan. Historische Personen-IDs aus get_time_report lesen; importierte Zeiten sind nur lesbar. Status-IDs, Mitglieder und Tags sind projektspezifisch und können sich ändern. Bei Änderungen erneut abrufen; keine Namen oder IDs raten. Epics haben keine Eltern; Tickets können Untertickets enthalten.',
         on_list_tools=list_tools, on_call_tool=call_tool,
         get_tool_input_schema=lambda name: OPERATIONS.get(name, {}).get('inputSchema'),
     )

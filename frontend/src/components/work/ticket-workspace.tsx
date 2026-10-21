@@ -431,6 +431,12 @@ export function TicketWorkspace({
         >
           Aus Jira importieren
         </Link>
+        <Link
+          className="tl-secondary"
+          href={`/dashboard/clickup${workspace ? `?workspace=${workspace}` : ""}`}
+        >
+          Aus ClickUp importieren
+        </Link>
       </div>
       {error && (
         <div className="tl-error" role="alert">
