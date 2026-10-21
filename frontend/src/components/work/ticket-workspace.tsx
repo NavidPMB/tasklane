@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/ui/icon";
 import {
   type Project,
+  type Workspace,
   type ProjectData,
   type Ticket,
   priorities,
@@ -26,12 +27,21 @@ export function TicketWorkspace({
   userId,
   initialView = "board",
   initialProject,
+  initialWorkspace,
 }: {
   userId: number;
   initialView?: string;
   initialProject?: number;
+  initialWorkspace?: number;
 }) {
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [allProjects, setProjects] = useState<Project[]>([]);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [workspace, setWorkspace] = useState(initialWorkspace || 0);
+  const workspaceRef = useRef(workspace);
+  workspaceRef.current = workspace;
+  const projects = allProjects.filter(
+    (p) => !workspace || p.workspace_id === workspace,
+  );
   const [selected, setSelected] = useState<number | null>(
     initialProject || null,
   );
@@ -55,15 +65,24 @@ export function TicketWorkspace({
   const [dragOver, setDragOver] = useState<number | null>(null);
 
   const loadProjects = useCallback(async (signal?: AbortSignal) => {
-    const result = await workFetch<{ projects: Project[] }>(
-      "/api/work/projects/",
-      signal,
+    const [result, spaces] = await Promise.all([
+      workFetch<{ projects: Project[] }>("/api/work/projects/", signal),
+      workFetch<{ workspaces: Workspace[] }>("/api/work/workspaces/", signal),
+    ]);
+    setWorkspaces(spaces.workspaces);
+    if (
+      workspaceRef.current &&
+      !spaces.workspaces.some((w) => w.id === workspaceRef.current)
+    ) {
+      workspaceRef.current = 0;
+      setWorkspace(0);
+    }
+    const visible = result.projects.filter(
+      (p) => !workspaceRef.current || p.workspace_id === workspaceRef.current,
     );
     setProjects(result.projects);
     setSelected((current) =>
-      result.projects.some((p) => p.id === current)
-        ? current
-        : result.projects[0]?.id || null,
+      visible.some((p) => p.id === current) ? current : visible[0]?.id || null,
     );
     return result.projects;
   }, []);
@@ -179,10 +198,20 @@ export function TicketWorkspace({
     return () => clearTimeout(timeout);
   }, [notice]);
 
-  function selectProject(projectId: number) {
+  function selectProject(projectId: number, workspaceId?: number) {
     setSelected(projectId);
+    const target = allProjects.find((p) => p.id === projectId);
+    if (workspaceId || target) {
+      const id = workspaceId || target!.workspace_id;
+      workspaceRef.current = id;
+      setWorkspace(id);
+    }
     setView("board");
-    window.history.replaceState(null, "", `/dashboard?project=${projectId}`);
+    window.history.replaceState(
+      null,
+      "",
+      `/dashboard?project=${projectId}&workspace=${workspaceId || allProjects.find((p) => p.id === projectId)?.workspace_id || workspace}`,
+    );
   }
   async function changeStatus(ticket: Ticket, statusId: number) {
     if (busy || ticket.status_id === statusId) return;
@@ -361,6 +390,48 @@ export function TicketWorkspace({
           </button>
         </div>
       </div>
+      <div className="tl-workspace-bar">
+        <label>
+          Workspace{" "}
+          <select
+            aria-label="Workspace auswählen"
+            value={workspace}
+            onChange={(e) => {
+              const id = Number(e.target.value);
+              setWorkspace(id);
+              workspaceRef.current = id;
+              setSelected(
+                allProjects.find((p) => !id || p.workspace_id === id)?.id ||
+                  null,
+              );
+              window.history.replaceState(
+                null,
+                "",
+                `/dashboard${view === "projects" ? "/projects" : ""}${id ? `?workspace=${id}` : ""}`,
+              );
+            }}
+          >
+            <option value={0}>Alle Workspaces</option>
+            {workspaces.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name} ({w.project_count})
+              </option>
+            ))}
+          </select>
+        </label>
+        <Link
+          className="tl-secondary"
+          href={`/dashboard/workspaces${workspace ? `?workspace=${workspace}` : ""}`}
+        >
+          Workspace & Team
+        </Link>
+        <Link
+          className="tl-secondary"
+          href={`/dashboard/jira${workspace ? `?workspace=${workspace}` : ""}`}
+        >
+          Aus Jira importieren
+        </Link>
+      </div>
       {error && (
         <div className="tl-error" role="alert">
           {error}
@@ -388,7 +459,9 @@ export function TicketWorkspace({
               onClick={() => selectProject(p.id)}
             >
               <span className="tl-project-mark">{p.key.slice(0, 2)}</span>
-              <span className="tl-project-card-key">{p.key}</span>
+              <span className="tl-project-card-key">
+                {p.workspace_name} · {p.key}
+              </span>
               <h2>{p.name}</h2>
               <p>{p.description || "Bereit für die nächsten Schritte."}</p>
               <div>
@@ -888,16 +961,25 @@ export function TicketWorkspace({
             <Icon name="board" width={34} height={34} />
           </span>
           <p className="eyebrow">PLATZ FÜR DEIN NÄCHSTES VORHABEN</p>
-          <h2>Gute Arbeit beginnt mit einem Projekt.</h2>
+          <h2>
+            Gute Arbeit beginnt mit{" "}
+            {workspaces.length ? "einem Projekt" : "einem Workspace"}.
+          </h2>
           <p>
             Erstelle dein erstes Projekt. Organisiere Epics, verteile Tickets
             <br />
             und passe den Workflow an dein Team an.
           </p>
-          <button className="button" onClick={() => setNewProject(true)}>
-            <Icon name="plus" width={16} height={16} />
-            Erstes Projekt erstellen
-          </button>
+          {workspaces.length ? (
+            <button className="button" onClick={() => setNewProject(true)}>
+              <Icon name="plus" width={16} height={16} />
+              Erstes Projekt erstellen
+            </button>
+          ) : (
+            <Link className="button" href="/dashboard/workspaces">
+              Ersten Workspace erstellen
+            </Link>
+          )}
           <div className="tl-empty-features">
             <span>◇ Epics & Untertickets</span>
             <span>▤ Flexible Boards</span>
@@ -907,10 +989,12 @@ export function TicketWorkspace({
       )}
       {newProject && (
         <ProjectForm
+          workspaces={workspaces}
+          workspaceId={workspace || undefined}
           onClose={() => setNewProject(false)}
           onSaved={async (project) => {
             await loadProjects();
-            selectProject(project.id);
+            selectProject(project.id, project.workspace_id);
             setNotice("Projekt erstellt.");
           }}
         />

@@ -53,7 +53,14 @@ export default async function McpPage() {
       <section className="tl-mcp-section">
         <h2>2. Mit deinen Projekten arbeiten</h2>
         <div className="tl-prompt-examples">
+          <p>
+            „Erstelle einen Workspace GroupFractal und zeige seine Projekte.“
+          </p>
           <p>„Zeige meine Projekte und die offenen Tickets.“</p>
+          <p>
+            „Suche Jira-Tickets im Workspace GroupFractal und importiere WEB-1
+            und WEB-2.“
+          </p>
           <p>
             „Erstelle im Projekt WEB ein Epic für den Relaunch und drei
             Untertickets.“
@@ -75,6 +82,15 @@ export default async function McpPage() {
       <section className="tl-mcp-section">
         <h2>Verfügbare Werkzeuge</h2>
         <div className="tl-mcp-tools">
+          <div>
+            <strong>Workspaces & Jira</strong>
+            <p>
+              Workspaces erstellen, mit bestehenden Konten teilen und Projekte
+              darin verwalten. Jira-Verbindung prüfen, Tickets per JQL suchen
+              und ausgewählt importieren. Zugangsdaten vorzugsweise im
+              Jira-Panel hinterlegen.
+            </p>
+          </div>
           <div>
             <strong>Projekte & Team</strong>
             <p>

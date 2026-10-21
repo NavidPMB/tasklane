@@ -4,7 +4,7 @@
 
 `backend/modules/work/` enthält Modelle und die gemeinsame Fachlogik für Projekte, Mitglieder, Status, Tags und Tickets. `services.OPERATIONS` definiert Werkzeugnamen, Eingabeschemata und Handler. HTTP-API und MCP rufen beide `services.execute` auf. Eingaben werden mit JSON Schema validiert; Projektzugriff und fachliche Verknüpfungen werden im Backend geprüft.
 
-`GET /api/work/projects/` liefert nur eigene Projekte. `GET /api/work/projects/<id>/` liefert den aktuellen Projektstand einschließlich geordneter Status, aktiver Mitglieder, Tags und Tickets. Änderungen erfolgen per CSRF-geschütztem `POST /api/work/actions/` mit `{"action": "<Werkzeugname>", "arguments": {...}}`. Die Registry ist die vollständige Referenz der Aktionen. Fachliche Fehler liefern `400`, fehlender Projektzugriff `404`, fehlende Sitzung `401`, unzulässige Verwaltungsaktionen `403` und konkurrierende Ticketänderungen `409`.
+`GET /api/work/projects/` liefert nur zugängliche Projekte einschließlich geerbter Workspace-Freigaben. `GET /api/work/projects/<id>/` liefert den aktuellen Projektstand einschließlich geordneter Status, aktiver Mitglieder, Tags und Tickets. Änderungen erfolgen per CSRF-geschütztem `POST /api/work/actions/` mit `{"action": "<Werkzeugname>", "arguments": {...}}`. Die Registry ist die vollständige Referenz der Aktionen. Fachliche Fehler liefern `400`, fehlender Projektzugriff `404`, fehlende Sitzung `401`, unzulässige Verwaltungsaktionen `403` und konkurrierende Ticketänderungen `409`.
 
 Die Projektleitung verwaltet Projektname, Beschreibung und Mitgliedschaft. Mitglieder können Tickets, Status und Tags verwalten. Projektabfragen wenden die Mitgliedschaft vor der Ausgabe an; es gibt keinen globalen Staff-Bypass. Fremde Status, Tags, Eltern-Tickets und Zuständige werden zurückgewiesen. Die Oberfläche bietet keine Benutzerauflistung außerhalb des Projekts an.
 
@@ -38,12 +38,15 @@ Beispiel für einen stdio-Client; absolute Pfade an den Checkout anpassen:
 }
 ```
 
-Die angemeldete Seite `/dashboard/mcp` erzeugt diese Konfiguration mit lokalen Pfaden und der eigenen E-Mail. Der Prozess ist eine lokale Verbindung für einen vertrauenswürdigen Host mit Dateisystem- und Datenbankzugriff. Es wird kein HTTP-MCP-Endpunkt und kein Fernzugriff veröffentlicht; dafür wäre ein separates Authentifizierungskonzept erforderlich. Anmeldedaten oder Sitzungstokens gehören nicht in MCP-Argumente.
+Die angemeldete Seite `/dashboard/mcp` erzeugt diese Konfiguration mit lokalen Pfaden und der eigenen E-Mail. Der Prozess ist eine lokale Verbindung für einen vertrauenswürdigen Host mit Dateisystem- und Datenbankzugriff. Es wird kein HTTP-MCP-Endpunkt und kein Fernzugriff veröffentlicht; dafür wäre ein separates Authentifizierungskonzept erforderlich. Tasklane-Anmeldedaten und Sitzungstokens gehören nicht in MCP-Argumente. Jira-Zugangsdaten vorzugsweise im Dashboard einrichten; `configure_jira` ist ausschließlich ein schreibbarer Integrationseinstieg und gibt keine Tokens zurück.
 
-Der Server bietet 24 Werkzeuge für Projekte, Mitgliedschaft, Status, Tags und Tickets. `list_projects` → `get_project` / `list_statuses` liefert den aktuellen Kontext. `create_ticket` mit `kind: "epic"` erstellt ein Epic; `parent_id` verknüpft Untertickets. `assignee_ids` und `tag_ids` sind ersetzende Listen. Bei `update_ticket` bleiben ausgelassene Felder unverändert; `null` löst Eltern-Ticket oder Datum. Domainfehler werden als MCP-Toolfehler zurückgegeben. Protokollausgaben laufen über stdout, Diagnose über stderr.
+Der Server bietet 34 Werkzeuge für Projekte, Mitgliedschaft, Status, Tags und Tickets. `list_projects` → `get_project` / `list_statuses` liefert den aktuellen Kontext. `create_ticket` mit `kind: "epic"` erstellt ein Epic; `parent_id` verknüpft Untertickets. `assignee_ids` und `tag_ids` sind ersetzende Listen. Bei `update_ticket` bleiben ausgelassene Felder unverändert; `null` löst Eltern-Ticket oder Datum. Domainfehler werden als MCP-Toolfehler zurückgegeben. Protokollausgaben laufen über stdout, Diagnose über stderr.
 
 ## Prüfen und Wiki
 
 `make test` prüft die PostgreSQL-Modelle, Projektgrenzen, CSRF, Hierarchien, Statuswechsel, Eingabevalidierung, Konflikte sowie Discovery und Werkzeugaufrufe mit dem offiziellen MCP-Client. `make check` prüft Django, Migrationen und den Next.js-Produktionsbuild.
 
 Migration `work.0002_wiki_guides` veröffentlicht eingefrorene Ausgangsfassungen der Benutzeranleitung (Sichtbarkeit `registered`) und dieser Entwickleranleitung (`internal`). Bestehende Wiki-Artikel werden nicht überschrieben. Die versionierten Quellen stehen unter `docs/tasklane-guide.md` und `docs/development/tasklane-mcp.md`; Änderungen an Dateien aktualisieren bestehende Datenbankartikel nicht automatisch.
+
+
+Workspace-Vererbung und Jira-Import sind in [Workspaces und Jira entwickeln](workspaces-jira.md) dokumentiert. Zusätzliche Werkzeuge: sechs Workspace-Aktionen und vier Jira-Aktionen; für Projektlisten und Zeitberichte ist `workspace_id` als Filter verfügbar.

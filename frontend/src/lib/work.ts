@@ -1,5 +1,20 @@
-export type Person = { id: number; name: string; email: string };
+export type Person = {
+  id: number;
+  name: string;
+  email: string;
+  inherited?: boolean;
+};
+export type Workspace = {
+  id: number;
+  name: string;
+  owner_id: number;
+  can_manage: boolean;
+  can_create_project: boolean;
+  project_count: number;
+};
 export type Project = {
+  workspace_id: number;
+  workspace_name: string;
   id: number;
   name: string;
   key: string;
@@ -32,6 +47,7 @@ export type Ticket = {
   due_date: string | null;
   created_at: string;
   updated_at: string;
+  jira: { key: string; url: string } | null;
   logged_minutes: number;
 };
 export type ProjectData = {

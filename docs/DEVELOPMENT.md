@@ -18,11 +18,19 @@ Ticket- und Projektfunktionen liegen in `backend/modules/work/`. HTTP und MCP te
 
 `modules.work.TimeEntry` speichert Datum, ganze Minuten (1–1440), Notiz, Ticket und die buchende Person. Die Autorenschaft kommt ausschließlich aus der Sitzung bzw. der MCP-Identität. Fremde Buchungen dürfen auch von der Projektleitung nicht verändert werden; lesender Zugriff folgt der aktuellen Projektmitgliedschaft. Buchungen bleiben bei Mitgliedschaftsentzug erhalten, Tickets mit Buchungen sind vor dem Löschen geschützt. Es gibt keinen laufenden Timer und keine automatische Verrechnung von Untertickets auf Epics.
 
-Die sechs Zeit-Werkzeuge sind in derselben `OPERATIONS`-Registry wie die Ticketaktionen registriert. Schreibaktionen bleiben CSRF-geschützte `POST /api/work/actions/`. Lesende Browserrouten sind `/api/work/time/entries/`, `/api/work/time/report/` und `/api/work/time/export/`. Optionale Filter: `project_id`, `user_id`, `date_from`, `date_to`; Buchungslisten zusätzlich `ticket_id`, `offset`, `limit`. Zeiträume sind inklusive, Berichte standardmäßig vom Monatsanfang bis heute. Ohne Projektfilter werden nur aktuell zugängliche Projekte summiert. Buchungslisten ohne Datumsfilter zeigen die gesamte Historie.
+Die sechs Zeit-Werkzeuge sind in derselben `OPERATIONS`-Registry wie die Ticketaktionen registriert. Schreibaktionen bleiben CSRF-geschützte `POST /api/work/actions/`. Lesende Browserrouten sind `/api/work/time/entries/`, `/api/work/time/report/` und `/api/work/time/export/`. Optionale Filter: `workspace_id`, `project_id`, `user_id`, `date_from`, `date_to`; Buchungslisten zusätzlich `ticket_id`, `offset`, `limit`. Zeiträume sind inklusive, Berichte standardmäßig vom Monatsanfang bis heute. Ohne Projektfilter werden nur aktuell zugängliche Projekte summiert. Buchungslisten ohne Datumsfilter zeigen die gesamte Historie.
 
 Summen werden in PostgreSQL als ganze Minuten berechnet. Ticketantworten enthalten `logged_minutes`; Listen laden diese Summe über eine Annotation, ohne M2M-Zuweisungen mitzusummieren. Ein Buchungstag ist ein Kalendertag mit einer Buchung. CSV verwendet Semikolon und UTF-8-BOM; Textfelder mit Formelpräfixen werden geschützt. Exporte verwenden dieselben Zugriffs- und Filterregeln wie Berichte. `expected_updated_at` schützt optional vor konkurrierenden Korrekturen.
 
 [Benutzeranleitung](time-tracking.md), auch unter `/wiki/tasklane-arbeitszeit` mit Sichtbarkeit `registered`. Migration `work.0004_time_guide` legt den eingefrorenen Ausgangsstand an, ohne bestehende Wiki-Artikel zu überschreiben. Die Tests in `modules.work.test_time` prüfen Summen, Filter, Datum und Dauer, Autorenschaft, Mitgliedschaftsentzug, CSV und echte MCP-Aufrufe.
+
+## Workspaces und Jira Cloud
+
+Die [Benutzeranleitung für Workspaces und Jira](workspaces-jira.md) beschreibt Teamfreigaben und den Auswahlimport. Die [technische Anleitung](development/workspaces-jira.md) dokumentiert Berechtigungsvererbung, verschlüsselte Zugangsdaten, Cloud- und Gateway-Zugriffe, Transaktionsgrenzen und Quellzuordnungen. Neue Konten werden nicht aus Jira übernommen; eine Zuweisung setzt eine passende E-Mail eines aktiven effektiven Projektmitglieds voraus.
+
+Workspace-Mitglieder erhalten Zugriff auf bestehende und zukünftige Projekte. Alte direkte Projektfreigaben bleiben beim Upgrade erhalten, ohne bisher private Projekte zu öffnen. `workspace_id` grenzt Projektlisten und Zeitberichte ein. Der Jira-Import liest vor dem Schreiben erneut aus Jira und speichert bis zu 50 gewählte Tickets atomar; existierende Quell-Tickets werden übersprungen. Jira-HTTP-Anfragen laufen außerhalb der DB-Transaktion. API-Tokens werden ausschließlich im zentralen verschlüsselten Integrationsmodell gespeichert.
+
+Die Wiki-Ausgangsfassungen unter `/wiki/tasklane-workspaces-jira` (`registered`) und `/wiki/tasklane-workspaces-jira-entwicklung` (`internal`) werden durch `work.0007` eingefroren angelegt, ohne bestehende Inhalte zu überschreiben. Automatisierte Jira-Tests verwenden simulierte Netzwerkantworten; ein echter Import benötigt eigene Jira-Cloud-Zugangsdaten.
 
 ## Passwortanmeldung
 

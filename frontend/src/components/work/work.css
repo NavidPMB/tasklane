@@ -1479,3 +1479,207 @@
     margin-left: 0;
   }
 }
+
+/* Workspace hierarchy and Jira import use the existing application tokens. */
+.tl-workspace-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px;
+  margin-bottom: 24px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: 12px;
+}
+.tl-workspace-bar label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.tl-workspace-bar select {
+  min-width: 210px;
+  max-width: 100%;
+}
+.tl-workspace-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.tl-workspace-panel {
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+  padding: 24px;
+  margin-bottom: 24px;
+  min-width: 0;
+}
+.tl-workspace-panel h2 {
+  font-size: 18px;
+  margin: 0 0 16px;
+}
+.tl-workspace-panel h3 {
+  font-size: 14px;
+  margin: 20px 0 12px;
+}
+.tl-workspace-panel p {
+  line-height: 1.65;
+}
+.tl-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.tl-panel-head h2 {
+  margin: 0;
+}
+.tl-space-list {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 28px;
+}
+.tl-space-list button {
+  padding: 14px;
+  text-align: left;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-radius: 9px;
+  font: inherit;
+  cursor: pointer;
+}
+.tl-space-list button.active {
+  border-color: var(--color-secondary);
+  background: color-mix(
+    in srgb,
+    var(--color-secondary) 8%,
+    var(--color-surface)
+  );
+}
+.tl-space-list small {
+  display: block;
+  color: var(--color-muted);
+  margin-top: 6px;
+  font-size: 12px;
+}
+.tl-space-projects {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+}
+.tl-space-projects a {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--color-border);
+  text-decoration: none;
+  color: var(--color-text);
+  font-size: 13px;
+}
+.tl-space-projects a span {
+  color: var(--color-muted);
+}
+.tl-jira-credentials {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.tl-jira-table-wrap {
+  overflow-x: auto;
+}
+.tl-jira-table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 12px 0 22px;
+  font-size: 13px;
+  text-align: left;
+}
+.tl-jira-table th {
+  color: var(--color-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.tl-jira-table th,
+.tl-jira-table td {
+  padding: 14px 10px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+.tl-jira-table td:nth-child(2) {
+  min-width: 250px;
+}
+.tl-jira-table td > span,
+.tl-jira-table td > small {
+  display: block;
+  margin-top: 5px;
+}
+.tl-jira-table input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--color-secondary);
+}
+.tl-import-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 16px 0 0;
+}
+.tl-success-label {
+  font-size: 12px;
+  color: var(--color-secondary);
+  font-weight: 600;
+}
+@media (max-width: 900px) {
+  .tl-workspace-layout,
+  .tl-jira-credentials {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 600px) {
+  .tl-workspace-panel {
+    padding: 18px;
+  }
+  .tl-workspace-bar label {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .tl-workspace-bar select {
+    width: 100%;
+  }
+}
+.tl-workspace-bar select,
+.tl-inline-form input {
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 9px 11px;
+  font: inherit;
+  font-size: 13px;
+}
+.tl-inline-form {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.tl-inline-form input {
+  flex: 1;
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  .tl-inline-form input {
+    flex-basis: 100%;
+  }
+}

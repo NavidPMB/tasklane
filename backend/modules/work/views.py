@@ -24,7 +24,7 @@ def errors(view):
 @require_user()
 @errors
 def projects(request):
-    return JsonResponse(execute(request.user, 'list_projects', {}))
+    return JsonResponse(execute(request.user, 'list_projects', time_arguments(request, 'list_projects')))
 
 
 @never_cache
@@ -94,3 +94,11 @@ def time_export(request):
     response = HttpResponse(result['csv'], content_type='text/csv; charset=utf-8')
     response['Content-Disposition'] = f'attachment; filename="{result["filename"]}"'
     return response
+
+
+@never_cache
+@require_GET
+@require_user()
+@errors
+def workspaces(request):
+    return JsonResponse(execute(request.user, 'list_workspaces', {}))

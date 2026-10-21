@@ -207,6 +207,36 @@ class McpTests(TransactionTestCase):
         async_to_sync(exercise)()
         self.assertEqual(self.project['id'], Ticket.objects.get(title='MCP Ticket').project_id)
 
+    def test_workspace_creation_sharing_and_jira_import_through_sdk(self):
+        from mcp_server import create_server
+        from unittest.mock import patch
+        from .test_workspaces_jira import remote_issue
+        from .models import JiraConnection
+
+        async def exercise():
+            async with McpClient(create_server(self.user.email)) as client:
+                space = await client.call_tool('create_workspace', {'name': 'MCP Workspace'})
+                self.assertFalse(space.is_error)
+                space_id = space.structured_content['id']
+                config = await client.call_tool('configure_jira', {'workspace_id': space_id, 'base_url': 'https://example.atlassian.net', 'email': self.user.email, 'api_token': 'fixture-mcp-secret'})
+                self.assertFalse(config.is_error)
+                preview = await client.call_tool('preview_jira', {'workspace_id': space_id, 'jql': 'project=WEB'})
+                self.assertFalse(preview.is_error)
+                imported = await client.call_tool('import_jira', {'workspace_id': space_id, 'issue_keys': ['WEB-1']})
+                self.assertFalse(imported.is_error)
+                self.assertEqual(imported.structured_content['created'], ['WEB-1'])
+                projects = await client.call_tool('list_projects', {'workspace_id': space_id})
+                self.assertEqual(len(projects.structured_content['projects']), 1)
+                self.assertNotIn('fixture-mcp-secret', str(config))
+                annotations = {t.name: t.annotations for t in (await client.list_tools()).tools}
+                self.assertTrue(annotations['preview_jira'].open_world_hint)
+                self.assertTrue(annotations['preview_jira'].read_only_hint)
+        def remote(*args, **kwargs):
+            return {'accountId': 'me'} if args[3] == 'myself' else {'issues': [remote_issue(assignee=None)]}
+        with patch('modules.work.jira.jira_request', side_effect=remote):
+            async_to_sync(exercise)()
+        self.assertEqual(JiraConnection.objects.count(), 1)
+
     def test_mcp_rechecks_account_state(self):
         from mcp_server import create_server
         from asgiref.sync import sync_to_async

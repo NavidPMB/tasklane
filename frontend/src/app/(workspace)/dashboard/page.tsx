@@ -4,7 +4,11 @@ import { requireUser } from "@/lib/auth";
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ project?: string; notice?: string }>;
+  searchParams: Promise<{
+    project?: string;
+    workspace?: string;
+    notice?: string;
+  }>;
 }) {
   const user = await requireUser();
   const params = await searchParams;
@@ -17,6 +21,7 @@ export default async function DashboardPage({
       )}
       <TicketWorkspace
         userId={user.id}
+        initialWorkspace={Number(params.workspace) || undefined}
         initialProject={Number(params.project) || undefined}
       />
     </>

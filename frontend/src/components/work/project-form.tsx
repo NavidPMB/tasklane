@@ -1,12 +1,16 @@
 "use client";
 import { useState, type FormEvent } from "react";
-import { workAction, type Project } from "@/lib/work";
+import { workAction, type Project, type Workspace } from "@/lib/work";
 import { WorkDialog } from "./dialog";
 
 export function ProjectForm({
   onClose,
   onSaved,
+  workspaces,
+  workspaceId,
 }: {
+  workspaces: Workspace[];
+  workspaceId?: number;
   onClose: () => void;
   onSaved: (project: Project) => Promise<void>;
 }) {
@@ -18,10 +22,10 @@ export function ProjectForm({
     setError("");
     const form = new FormData(event.currentTarget);
     try {
-      const project = await workAction<Project>(
-        "create_project",
-        Object.fromEntries(form),
-      );
+      const project = await workAction<Project>("create_project", {
+        ...Object.fromEntries(form),
+        workspace_id: Number(form.get("workspace_id")),
+      });
       await onSaved(project);
       onClose();
     } catch (err) {
@@ -44,6 +48,29 @@ export function ProjectForm({
         {error && (
           <p className="tl-error" role="alert">
             {error}
+          </p>
+        )}
+        <label>
+          Workspace
+          <select
+            name="workspace_id"
+            required
+            defaultValue={
+              workspaceId || workspaces.find((w) => w.can_create_project)?.id
+            }
+          >
+            {workspaces
+              .filter((w) => w.can_create_project)
+              .map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+          </select>
+        </label>
+        {!workspaces.some((w) => w.can_create_project) && (
+          <p className="tl-hint">
+            Bitte zuerst unter Workspaces einen Workspace erstellen.
           </p>
         )}
         <label>
@@ -84,7 +111,10 @@ export function ProjectForm({
           <button className="tl-secondary" type="button" onClick={onClose}>
             Abbrechen
           </button>
-          <button className="button" disabled={busy}>
+          <button
+            className="button"
+            disabled={busy || !workspaces.some((w) => w.can_create_project)}
+          >
             {busy ? "Erstellt …" : "Projekt erstellen"}
           </button>
         </div>

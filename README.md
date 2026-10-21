@@ -13,7 +13,9 @@ Built with **Django, Next.js and PostgreSQL**. The interface is currently in **G
 
 ## What you can do
 
-- Create multiple projects with separate members, tags and workflows.
+- Organize projects in shared workspaces, with inherited team access across all current and future projects.
+- Import selected Jira Cloud tickets with encrypted credentials, JQL previews and automatic project creation.
+- Create multiple projects with separate tags, workflows and optional project-only guests.
 - Organize work into epics, tickets and nested subtickets.
 - Assign multiple teammates, add tags, set priorities and due dates.
 - Switch between a drag-and-drop board and a hierarchical list.
@@ -22,7 +24,7 @@ Built with **Django, Next.js and PostgreSQL**. The interface is currently in **G
 - Search and combine filters for status, assignee, tag, epic and ticket type.
 - Start with four status categories: **Open → In progress → Done → Closed**.
 - Insert and reorder custom statuses within those categories. Board columns, selectors and MCP use the same live status list.
-- Connect a local MCP client to **24 tools** for projects, members, tickets, tags and statuses.
+- Connect a local MCP client to **34 tools** for projects, members, tickets, tags and statuses.
 - Use the built-in wiki with public, member-only and superuser-only articles.
 
 ## Quick start
@@ -63,7 +65,7 @@ This creates a local administrator. There are **no default accounts or shared pa
 make dev
 ```
 
-Open **[http://localhost:3010/login](http://localhost:3010/login)**, sign in with the account you just created, and create your first project.
+Open **[http://localhost:3010/login](http://localhost:3010/login)**, sign in with the account you just created, and create your first workspace and project.
 
 `make dev` starts the backend and frontend together. **Ctrl+C stops both**. PostgreSQL keeps running so MCP clients can continue to use it. To stop the database too:
 
@@ -115,7 +117,7 @@ make mcp-check MCP_EMAIL=you@example.com
 The check performs MCP initialization, discovers the tools and makes a read-only `list_projects` call. An empty project list is fine:
 
 ```text
-MCP OK: 24 tools discovered, 0 accessible projects.
+MCP OK: 34 tools discovered, 0 accessible projects.
 ```
 
 The server needs an **existing active account**. It rechecks account status and project access on every call. The email selects the account for a trusted local process; it is not a remote authentication token. This release does not expose an HTTP MCP endpoint.
@@ -134,6 +136,8 @@ Ask the assistant to call `list_projects` and `get_project` or `list_statuses` f
 
 | Area | Tools |
 | --- | --- |
+| Workspaces | `list_workspaces`, `create_workspace`, `get_workspace`, `update_workspace`, `add_workspace_member`, `remove_workspace_member` |
+| Jira Cloud | `get_jira_connection`, `configure_jira`, `preview_jira`, `import_jira` |
 | Projects | `list_projects`, `get_project`, `create_project`, `update_project` |
 | Team | `add_project_member`, `remove_project_member` |
 | Workflow | `list_statuses`, `create_status`, `update_status`, `delete_status` |
@@ -145,11 +149,25 @@ Ask the assistant to call `list_projects` and `get_project` or `list_statuses` f
 
 Browser changes are refreshed immediately after saving. Changes from another client—including MCP—are fetched every **10 seconds** while the page is active, and when the window regains focus.
 
+## Shared workspaces and Jira Cloud import
+
+Open **Workspaces & Team**, create a workspace such as **GroupFractal**, and add a teammate's existing Tasklane account by email. Workspace members can access all existing and future projects in it. Project-only sharing is also supported. Removing workspace access preserves any separate project memberships and ownership.
+
+Open **Jira-Import**, select the workspace and enter your `https://team.atlassian.net` URL, Jira email and API token. Tokens with and without scopes are supported; scoped tokens need the read permissions required by the Jira profile and issue-search APIs. Credentials are verified and stored through the central encrypted integration model. Only the workspace owner can manage and use the Jira connection. No Jira credentials are needed to run Tasklane itself.
+
+Search with JQL, for example `project in (WEB, APP) ORDER BY updated DESC`, preview the results, and select up to **50 tickets per import**. Tasklane creates the corresponding projects inside the selected workspace and imports ticket text, epics, available parent relationships, statuses, labels, priorities and due dates. Jira assignees are matched only to existing project members by email; unresolved assignments or parents produce warnings. The ticket details retain a link to Jira.
+
+Imports are atomic and repeatable: existing imported issues are skipped, preserving local edits. This is a one-time import; attachments, comments, Jira worklogs and ongoing synchronization are outside its scope. Existing projects are migrated into personal workspaces without broadening their original sharing. Project keys are unique within a workspace, so use workspace and project IDs when an MCP request could be ambiguous.
+
+![Jira Cloud import preview with a workspace and selected tickets](docs/images/jira-import.png)
+
+See the [workspace and Jira guide](docs/workspaces-jira.md), also available at `/wiki/tasklane-workspaces-jira` after signing in. Atlassian documents [API-token setup](https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/) and [JQL search](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/).
+
 ## Time tracking and team reports
 
 Open a ticket or epic and choose **Zeit erfassen** to book your own work time. Enter the date, hours, minutes and an optional note. Entries are manual, between 1 minute and 24 hours, and can be booked for today or a past day. Ticket cards show their total logged time.
 
-Use **Zeiten & Berichte** in the dashboard to see how much each person worked. Filter by project, person and inclusive date range; the default is month-to-date across your accessible projects. Reports group time by person, project, ticket and day. The **CSV export** includes all matching entries, even when the on-screen list spans multiple pages.
+Use **Zeiten & Berichte** in the dashboard to see how much each person worked. Filter by workspace, project, person and inclusive date range; the default is month-to-date across your accessible projects. Reports group time by person, project, ticket and day. The **CSV export** includes all matching entries, even when the on-screen list spans multiple pages.
 
 Only the person who booked an entry can edit or delete it. Project members can read their team's entries. Bookings stay in reports when a member leaves; tickets with logged time are kept instead of being deleted. Subticket time belongs to that subticket and is not double-counted in its parent epic.
 
@@ -211,7 +229,7 @@ frontend/src/
 scripts/              Setup, combined dev server and MCP helpers
 ```
 
-The browser API and MCP server share the same validation and project access rules. The project owner manages membership and project settings; project members manage tickets, statuses and tags. Staff privileges alone do not grant access to other people's projects.
+The browser API and MCP server share the same validation and project access rules. The workspace owner manages workspace sharing and Jira; project and workspace owners manage project settings. Effective project members manage tickets, statuses and tags. Staff privileges alone do not grant access to other people's projects.
 
 More documentation: [user guide](docs/tasklane-guide.md), [developer guide](docs/DEVELOPMENT.md), [MCP internals](docs/development/tasklane-mcp.md), and [contributing](CONTRIBUTING.md). Detailed in-app documentation and the current interface are in German.
 

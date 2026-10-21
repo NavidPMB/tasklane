@@ -3,9 +3,25 @@ from django.db import models
 from django.db.models.functions import Lower
 
 
-class Project(models.Model):
+class Workspace(models.Model):
     name = models.CharField(max_length=120)
-    key = models.CharField(max_length=12, unique=True)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='owned_workspaces')
+    members = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name='workspaces', blank=True)
+    is_personal = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name', 'id']
+        constraints = [models.UniqueConstraint(fields=['owner'], condition=models.Q(is_personal=True), name='work_personal_workspace_unique')]
+
+    def __str__(self):
+        return self.name
+
+
+class Project(models.Model):
+    workspace = models.ForeignKey(Workspace, on_delete=models.PROTECT, related_name='projects')
+    name = models.CharField(max_length=120)
+    key = models.CharField(max_length=12)
     description = models.TextField(blank=True)
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='owned_projects')
     members = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name='work_projects')
@@ -14,6 +30,7 @@ class Project(models.Model):
 
     class Meta:
         ordering = ['name', 'id']
+        constraints = [models.UniqueConstraint(fields=['workspace', 'key'], name='work_project_workspace_key_unique')]
 
     def __str__(self):
         return f'{self.key} · {self.name}'
@@ -106,3 +123,32 @@ class TimeEntry(models.Model):
             models.Index(fields=['ticket', 'work_date'], name='work_time_ticket_date'),
             models.Index(fields=['user', 'work_date'], name='work_time_user_date'),
         ]
+
+
+class JiraConnection(models.Model):
+    workspace = models.OneToOneField(Workspace, on_delete=models.CASCADE, related_name='jira_connection')
+    base_url = models.URLField(max_length=250)
+    email = models.EmailField()
+    cloud_id = models.CharField(max_length=36, blank=True)
+    credential = models.OneToOneField('integrations.IntegrationCredential', on_delete=models.PROTECT)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class JiraProject(models.Model):
+    connection = models.ForeignKey(JiraConnection, on_delete=models.CASCADE, related_name='project_links')
+    remote_id = models.CharField(max_length=100)
+    project = models.OneToOneField(Project, on_delete=models.CASCADE, related_name='jira_source')
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['connection', 'remote_id'], name='work_jira_project_unique')]
+
+
+class JiraIssue(models.Model):
+    connection = models.ForeignKey(JiraConnection, on_delete=models.CASCADE, related_name='issue_links')
+    remote_id = models.CharField(max_length=100)
+    remote_key = models.CharField(max_length=100)
+    ticket = models.OneToOneField(Ticket, on_delete=models.CASCADE, related_name='jira_source')
+    imported_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['connection', 'remote_id'], name='work_jira_issue_unique')]

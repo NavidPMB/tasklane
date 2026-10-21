@@ -11,33 +11,25 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 from jsonschema import Draft202012Validator
 
-from .models import Project, Status, Tag, Ticket, TimeEntry
+from .models import Project, Status, Tag, Ticket, TimeEntry, Workspace
 
-
-class WorkError(Exception):
-    def __init__(self, message, status=400):
-        super().__init__(message)
-        self.status = status
-
+from .errors import WorkError
+from .access import accessible_projects, project_members, person
 
 CATEGORIES = [{'id': key, 'name': label} for key, label in Status.Category.choices]
 CATEGORY_ORDER = {item['id']: index for index, item in enumerate(CATEGORIES)}
 
 
-def person(user):
-    return {'id': user.pk, 'name': user.get_full_name() or user.email, 'email': user.email}
-
-
 def project_for(user, project_id):
-    project = Project.objects.filter(Q(owner=user) | Q(members=user), pk=project_id).distinct().first()
+    project = accessible_projects(user).filter(pk=project_id).first()
     if not project:
         raise WorkError('Projekt nicht gefunden.', 404)
     return project
 
 
 def owner_only(user, project):
-    if project.owner_id != user.pk:
-        raise WorkError('Nur die Projektleitung kann Mitglieder oder Projekteinstellungen ändern.', 403)
+    if project.owner_id != user.pk and project.workspace.owner_id != user.pk:
+        raise WorkError('Nur die Projekt- oder Workspace-Leitung kann Mitglieder oder Projekteinstellungen ändern.', 403)
 
 
 def project_data(project, user):
@@ -45,7 +37,8 @@ def project_data(project, user):
     return {
         'id': project.pk, 'name': project.name, 'key': project.key,
         'description': project.description, 'owner_id': project.owner_id,
-        'can_manage': project.owner_id == user.pk,
+        'workspace_id': project.workspace_id, 'workspace_name': project.workspace.name,
+        'can_manage': user.pk in (project.owner_id, project.workspace.owner_id),
         'ticket_count': ticket_count if ticket_count is not None else project.tickets.count(),
     }
 
@@ -60,7 +53,7 @@ def statuses_for(project):
 
 
 def ticket_query(project):
-    return project.tickets.select_related('project').prefetch_related('tags', 'assignees').annotate(logged_minutes=Coalesce(Sum('time_entries__minutes'), Value(0)))
+    return project.tickets.select_related('project', 'jira_source__connection').prefetch_related('tags', 'assignees').annotate(logged_minutes=Coalesce(Sum('time_entries__minutes'), Value(0)))
 
 
 def ticket_data(ticket):
@@ -73,8 +66,18 @@ def ticket_data(ticket):
         'tag_ids': [t.pk for t in ticket.tags.all()], 'priority': ticket.priority,
         'due_date': ticket.due_date.isoformat() if ticket.due_date else None,
         'created_at': ticket.created_at.isoformat(), 'updated_at': ticket.updated_at.isoformat(),
+        'jira': jira_ticket_source(ticket),
         'logged_minutes': logged_minutes if logged_minutes is not None else ticket.time_entries.aggregate(total=Sum('minutes'))['total'] or 0,
     }
+
+
+def jira_ticket_source(ticket):
+    from .models import JiraIssue
+    try:
+        source = ticket.jira_source
+    except JiraIssue.DoesNotExist:
+        return None
+    return {'key': source.remote_key, 'url': source.connection.base_url + '/browse/' + source.remote_key} if source else None
 
 
 def nonblank(value):
@@ -91,16 +94,26 @@ def related(project, relation, pk, label):
     return obj
 
 
-def list_projects(user):
-    projects = Project.objects.filter(Q(owner=user) | Q(members=user)).distinct().annotate(ticket_count=Count('tickets', distinct=True))
+def list_projects(user, workspace_id=None):
+    projects = accessible_projects(user)
+    if workspace_id is not None:
+        from .workspaces import workspace_for
+        workspace_for(user, workspace_id)
+        projects = projects.filter(workspace_id=workspace_id)
+    projects = projects.annotate(ticket_count=Count('tickets', distinct=True))
     return {'projects': [project_data(p, user) for p in projects]}
 
 
-def create_project(user, name, key, description=''):
+def create_project(user, name, key, description='', workspace_id=None):
+    from .workspaces import workspace_for
+    if workspace_id is None:
+        workspace, _ = Workspace.objects.get_or_create(owner=user, is_personal=True, defaults={'name': 'Meine Projekte'})
+    else:
+        workspace = workspace_for(user, workspace_id, member=True)
     key = key.strip().upper()
     if not re.fullmatch(r'[A-Z][A-Z0-9]{1,11}', key):
         raise WorkError('Projektkürzel: 2–12 Zeichen, beginnend mit einem Buchstaben, danach Buchstaben oder Ziffern.')
-    project = Project.objects.create(name=nonblank(name), key=key, description=description, owner=user)
+    project = Project.objects.create(name=nonblank(name), key=key, description=description, owner=user, workspace=workspace)
     project.members.add(user)
     Status.objects.bulk_create([Status(project=project, name=item['name'], category=item['id'], is_base=True) for item in CATEGORIES])
     return project_data(project, user)
@@ -108,10 +121,11 @@ def create_project(user, name, key, description=''):
 
 def get_project(user, project_id):
     project = project_for(user, project_id)
+    inherited = set(project.workspace.members.values_list('id', flat=True)) | {project.workspace.owner_id}
     return {
         'project': project_data(project, user), 'categories': CATEGORIES,
         'statuses': [status_data(s) for s in statuses_for(project)],
-        'members': [person(u) for u in project.members.filter(is_active=True).order_by('email')],
+        'members': [{**person(u), 'inherited': u.pk in inherited} for u in project_members(project)],
         'tags': list(project.tags.values('id', 'name')),
         'tickets': [ticket_data(t) for t in ticket_query(project)],
     }
@@ -143,6 +157,8 @@ def remove_project_member(user, project_id, user_id):
     owner_only(user, project)
     if project.owner_id == user_id:
         raise WorkError('Die Projektleitung kann nicht entfernt werden.')
+    if project.workspace.owner_id == user_id or project.workspace.members.filter(pk=user_id).exists():
+        raise WorkError('Dieses Mitglied gehört zum gesamten Workspace. Bitte dort verwalten.')
     member = related(project, 'members', user_id, 'Mitglied')
     Ticket.assignees.through.objects.filter(ticket__project=project, user_id=member.pk).delete()
     project.members.remove(member)
@@ -266,7 +282,7 @@ def set_ticket_fields(project, ticket, fields):
             raise WorkError('Das Fälligkeitsdatum muss ein gültiges Datum im Format JJJJ-MM-TT sein.')
     members, tags = None, None
     if 'assignee_ids' in fields:
-        members = list(project.members.filter(pk__in=fields['assignee_ids'], is_active=True))
+        members = list(project_members(project).filter(pk__in=fields['assignee_ids'], is_active=True))
         if len(members) != len(fields['assignee_ids']):
             raise WorkError('Zuweisungen sind nur an aktive Projektmitglieder möglich.')
     if 'tag_ids' in fields:
@@ -370,11 +386,15 @@ def delete_time_entry(user, project_id, entry_id, expected_updated_at=None):
     return {'deleted': True}
 
 
-def time_scope(user, project_id=None, ticket_id=None, user_id=None, date_from=None, date_to=None):
-    projects = Project.objects.filter(Q(owner=user) | Q(members=user)).distinct()
+def time_scope(user, project_id=None, ticket_id=None, user_id=None, date_from=None, date_to=None, workspace_id=None):
+    projects = accessible_projects(user)
     if project_id is not None:
         project_for(user, project_id)
         projects = projects.filter(pk=project_id)
+    if workspace_id is not None:
+        from .workspaces import workspace_for
+        workspace_for(user, workspace_id)
+        projects = projects.filter(workspace_id=workspace_id)
     entries = TimeEntry.objects.filter(ticket__project__in=projects).select_related('ticket__project', 'user')
     if ticket_id is not None:
         if not Ticket.objects.filter(project__in=projects, pk=ticket_id).exists():
@@ -393,8 +413,8 @@ def time_scope(user, project_id=None, ticket_id=None, user_id=None, date_from=No
     return projects, entries
 
 
-def list_time_entries(user, project_id=None, ticket_id=None, user_id=None, date_from=None, date_to=None, offset=0, limit=100):
-    _, entries = time_scope(user, project_id, ticket_id, user_id, date_from, date_to)
+def list_time_entries(user, project_id=None, ticket_id=None, user_id=None, date_from=None, date_to=None, offset=0, limit=100, workspace_id=None):
+    _, entries = time_scope(user, project_id, ticket_id, user_id, date_from, date_to, workspace_id)
     totals = entries.aggregate(total_minutes=Coalesce(Sum('minutes'), Value(0)), total=Count('id'))
     return {**totals, 'entries': [time_entry_data(entry, user) for entry in entries[offset:offset + limit]], 'offset': offset, 'limit': limit}
 
@@ -404,11 +424,11 @@ def report_period(date_from, date_to):
     return date_from or today.replace(day=1).isoformat(), date_to or today.isoformat()
 
 
-def get_time_report(user, project_id=None, user_id=None, date_from=None, date_to=None):
+def get_time_report(user, project_id=None, user_id=None, date_from=None, date_to=None, workspace_id=None):
     date_from, date_to = report_period(date_from, date_to)
-    projects, entries = time_scope(user, project_id=project_id, user_id=user_id, date_from=date_from, date_to=date_to)
+    projects, entries = time_scope(user, project_id=project_id, user_id=user_id, date_from=date_from, date_to=date_to, workspace_id=workspace_id)
     people = get_user_model().objects.filter(
-        Q(work_projects__in=projects) | Q(owned_projects__in=projects) | Q(time_entries__ticket__project__in=projects)
+        Q(work_projects__in=projects) | Q(owned_projects__in=projects) | Q(workspaces__projects__in=projects) | Q(owned_workspaces__projects__in=projects) | Q(time_entries__ticket__project__in=projects)
     ).distinct().order_by('email')
     people_data = [{**person(p), 'is_active': p.is_active} for p in people]
     grouped = {row['user_id']: row for row in entries.order_by().values('user_id').annotate(minutes=Sum('minutes'), entry_count=Count('id'), ticket_count=Count('ticket_id', distinct=True), day_count=Count('work_date', distinct=True))}
@@ -421,9 +441,9 @@ def get_time_report(user, project_id=None, user_id=None, date_from=None, date_to
             'days': [{'date': row['work_date'].isoformat(), 'minutes': row['minutes']} for row in entries.order_by('work_date').values('work_date').annotate(minutes=Sum('minutes'))]}
 
 
-def export_time_report(user, project_id=None, user_id=None, date_from=None, date_to=None):
+def export_time_report(user, project_id=None, user_id=None, date_from=None, date_to=None, workspace_id=None):
     date_from, date_to = report_period(date_from, date_to)
-    _, entries = time_scope(user, project_id=project_id, user_id=user_id, date_from=date_from, date_to=date_to)
+    _, entries = time_scope(user, project_id=project_id, user_id=user_id, date_from=date_from, date_to=date_to, workspace_id=workspace_id)
     output = StringIO()
     output.write('\ufeff')
     writer = csv.writer(output, delimiter=';')
@@ -463,12 +483,12 @@ def register(fn, description, properties=None, required=(), *, write=False, proj
     }
 
 
-register(list_projects, 'Eigene Projekte mit Kürzel und Ticketanzahl auflisten.', project=False)
-register(create_project, 'Projekt mit vier Grundstatus erstellen. Ersteller wird Projektleitung.', {'name': NAME(120), 'key': NAME(12), 'description': TEXT(10000)}, ['name', 'key'], write=True, project=False)
+register(list_projects, 'Zugängliche Projekte mit Workspace, Kürzel und Ticketanzahl auflisten.', {'workspace_id': ID}, project=False)
+register(create_project, 'Projekt im Workspace mit vier Grundstatus erstellen. Ohne workspace_id wird ein persönlicher Workspace verwendet. Ersteller wird Projektleitung.', {'name': NAME(120), 'key': NAME(12), 'description': TEXT(10000), 'workspace_id': ID}, ['name', 'key'], write=True, project=False)
 register(get_project, 'Aktueller Projektstand: Mitglieder, dynamische Status in Board-Reihenfolge, Tags und Tickets. Vor Statusauswahl abrufen.')
-register(update_project, 'Projektname oder Beschreibung ändern (nur Projektleitung).', {'name': NAME(120), 'description': TEXT(10000)}, write=True)
-register(add_project_member, 'Bestehendes aktives Konto per E-Mail zum Projekt hinzufügen (nur Projektleitung).', {'email': NAME(254)}, ['email'], write=True)
-register(remove_project_member, 'Mitglied entfernen und dessen Ticketzuweisungen in diesem Projekt lösen (nur Projektleitung).', {'user_id': ID}, ['user_id'], write=True)
+register(update_project, 'Projektname oder Beschreibung ändern (nur Projekt- oder Workspace-Leitung).', {'name': NAME(120), 'description': TEXT(10000)}, write=True)
+register(add_project_member, 'Bestehendes aktives Konto per E-Mail zum Projekt hinzufügen (nur Projekt- oder Workspace-Leitung).', {'email': NAME(254)}, ['email'], write=True)
+register(remove_project_member, 'Mitglied entfernen und dessen Ticketzuweisungen in diesem Projekt lösen (nur Projekt- oder Workspace-Leitung).', {'user_id': ID}, ['user_id'], write=True)
 register(list_statuses, 'Live-Status und vier Grundkategorien abrufen. Benutzerdefinierte Status haben eigene IDs; keine Statusnamen fest codieren.')
 register(create_status, 'Zwischenstatus in einer Grundkategorie erstellen. Position ordnet innerhalb der Kategorie, nach dem Grundstatus. Sofort in Board und Dropdowns verfügbar.', {'name': NAME(60), 'category': CATEGORY, 'position': POSITION}, ['name', 'category'], write=True)
 register(update_status, 'Status umbenennen, Zwischenstatus einer Kategorie zuordnen oder mit Position umsortieren. Grundstatus bleiben erhalten.', {'status_id': ID, 'name': NAME(60), 'category': CATEGORY, 'position': POSITION}, ['status_id'], write=True)
@@ -484,7 +504,7 @@ register(delete_ticket, 'Ticket ohne Untertickets löschen. Tickets mit Kindern 
 
 DATE = {'type': 'string', 'pattern': r'^\d{4}-\d{2}-\d{2}$'}
 TIME_FIELDS = {'work_date': DATE, 'minutes': {'type': 'integer', 'minimum': 1, 'maximum': 1440}, 'note': TEXT(2000)}
-TIME_FILTERS = {'project_id': ID, 'user_id': ID, 'date_from': DATE, 'date_to': DATE}
+TIME_FILTERS = {'workspace_id': ID, 'project_id': ID, 'user_id': ID, 'date_from': DATE, 'date_to': DATE}
 register(create_time_entry, 'Eigene Arbeitszeit auf ein Ticket buchen: Datum (nicht in der Zukunft), ganze Minuten (1–1440) und optionale Notiz. Person ist immer das angemeldete Konto.', {'ticket_id': ID, **TIME_FIELDS}, ['ticket_id', 'work_date', 'minutes'], write=True)
 register(update_time_entry, 'Eigene Zeitbuchung korrigieren. Fremde Buchungen können auch von der Projektleitung nicht verändert werden. expected_updated_at schützt vor Konflikten.', {'entry_id': ID, 'expected_updated_at': TEXT(40), **TIME_FIELDS}, ['entry_id'], write=True)
 register(delete_time_entry, 'Eigene Zeitbuchung löschen; fremde Buchungen bleiben geschützt.', {'entry_id': ID, 'expected_updated_at': TEXT(40)}, ['entry_id'], write=True)
@@ -501,14 +521,30 @@ def execute(user, action, arguments):
         raise WorkError('Unbekannte Aktion.')
     errors = list(Draft202012Validator(operation['inputSchema']).iter_errors(arguments))
     if errors:
+        if action == 'configure_jira':
+            raise WorkError('Ungültige Verbindungsdaten. Bitte Cloud-Adresse, E-Mail und API-Token prüfen.')
         error = errors[0]
         location = '.'.join(map(str, error.path)) or 'Parameter'
         raise WorkError(f'Ungültige Eingabe ({location}): {error.message}')
     try:
+        if operation.get('external'):
+            return operation['handler'](user, **arguments)
         with transaction.atomic():
+            if operation['write']:
+                workspace_id = arguments.get('workspace_id')
+                if 'project_id' in arguments:
+                    workspace_id = Project.objects.filter(pk=arguments['project_id']).values_list('workspace_id', flat=True).first()
+                if workspace_id:
+                    Workspace.objects.select_for_update().filter(pk=workspace_id).first()
             # Serialisiert Änderungen pro Projekt: Nummern, Hierarchie und Mitgliedschaft bleiben konsistent.
             if operation['write'] and 'project_id' in arguments:
                 Project.objects.select_for_update().filter(pk=arguments['project_id']).first()
             return operation['handler'](user, **arguments)
     except IntegrityError:
         raise WorkError('Dieses Kürzel oder dieser Name ist bereits vergeben oder die Änderung verletzt eine Verknüpfung.')
+
+
+from .workspaces import register_operations as register_workspaces
+from .jira import register_operations as register_jira
+register_workspaces(register, ID, NAME, TEXT)
+register_jira(register, ID, NAME, TEXT)

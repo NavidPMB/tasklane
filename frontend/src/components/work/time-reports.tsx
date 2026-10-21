@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { type Project, workFetch } from "@/lib/work";
+import { type Project, type Workspace, workFetch } from "@/lib/work";
 import {
   type TimeReport,
   type TimeEntries,
@@ -15,6 +15,8 @@ import { WorkDialog } from "./dialog";
 import { TicketTime, type TimeTicket } from "./ticket-time";
 
 export function TimeReports({ initialProject }: { initialProject?: number }) {
+  const [spaces, setSpaces] = useState<Workspace[]>([]);
+  const [workspace, setWorkspace] = useState("");
   const [projects, setProjects] = useState<Project[]>([]);
   const [project, setProject] = useState(
     initialProject ? String(initialProject) : "",
@@ -37,6 +39,7 @@ export function TimeReports({ initialProject }: { initialProject?: number }) {
     entry?: TimeEntry;
   } | null>(null);
   const query = new URLSearchParams({ date_from: from, date_to: to });
+  if (workspace) query.set("workspace_id", workspace);
   if (project) query.set("project_id", project);
   if (person) query.set("user_id", person);
   const queryString = query.toString();
@@ -59,16 +62,21 @@ export function TimeReports({ initialProject }: { initialProject?: number }) {
         `/api/work/time/entries/?${queryString}&offset=${offset}&limit=${pageSize}`,
         controller.signal,
       ),
+      workFetch<{ workspaces: Workspace[] }>(
+        "/api/work/workspaces/",
+        controller.signal,
+      ),
       workFetch<{ projects: Project[] }>(
         "/api/work/projects/",
         controller.signal,
       ),
     ])
-      .then(([summary, items, options]) => {
+      .then(([summary, items, workspaces, options]) => {
         if (controller.signal.aborted) return;
         setReport(summary);
         setEntries(items);
         setProjects(options.projects);
+        setSpaces(workspaces.workspaces);
         setError("");
       })
       .catch((err) => {
@@ -138,6 +146,26 @@ export function TimeReports({ initialProject }: { initialProject?: number }) {
       </div>
       <div className="tl-report-filters">
         <label>
+          Workspace
+          <select
+            aria-label="Workspace"
+            value={workspace}
+            onChange={(e) => {
+              setWorkspace(e.target.value);
+              setProject("");
+              setPerson("");
+              setOffset(0);
+            }}
+          >
+            <option value="">Alle Workspaces</option>
+            {spaces.map((w) => (
+              <option value={w.id} key={w.id}>
+                {w.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
           Projekt
           <select
             value={project}
@@ -149,11 +177,13 @@ export function TimeReports({ initialProject }: { initialProject?: number }) {
             }}
           >
             <option value="">Alle meine Projekte</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.key} · {p.name}
-              </option>
-            ))}
+            {projects
+              .filter((p) => !workspace || p.workspace_id === Number(workspace))
+              .map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.workspace_name} / {p.key} · {p.name}
+                </option>
+              ))}
           </select>
         </label>
         <label>

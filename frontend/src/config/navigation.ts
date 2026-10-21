@@ -13,6 +13,12 @@ export const navigation: Record<
     eyebrow: "Dein Arbeitsbereich",
     items: [
       { href: "/dashboard", label: "Board & Tickets", icon: "board" },
+      {
+        href: "/dashboard/workspaces",
+        label: "Workspaces & Team",
+        icon: "users",
+      },
+      { href: "/dashboard/jira", label: "Jira-Import", icon: "arrow" },
       { href: "/dashboard/projects", label: "Projekte", icon: "layers" },
       { href: "/dashboard/time", label: "Zeiten & Berichte", icon: "clock" },
       { href: "/dashboard/mcp", label: "MCP-Anbindung", icon: "terminal" },

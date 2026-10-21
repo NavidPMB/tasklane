@@ -359,6 +359,11 @@ export function WorkflowSettings({
         {tab === "team" && (
           <>
             <h3>Projektmitglieder</h3>
+            <p className="tl-hint">
+              Workspace-Mitglieder haben Zugriff auf alle Projekte und werden
+              unter Workspaces verwaltet. Zusätzliche Projektfreigaben gelten
+              nur hier.
+            </p>
             <div className="tl-members">
               {data.members.map((u) => (
                 <div className="tl-member" key={u.id}>
@@ -371,6 +376,8 @@ export function WorkflowSettings({
                   </div>
                   {u.id === data.project.owner_id ? (
                     <span className="tl-base-label">Projektleitung</span>
+                  ) : u.inherited ? (
+                    <span className="tl-base-label">Workspace-Mitglied</span>
                   ) : (
                     data.project.can_manage && (
                       <button

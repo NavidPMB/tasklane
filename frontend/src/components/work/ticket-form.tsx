@@ -145,6 +145,14 @@ export function TicketForm({
           </button>
         </div>
       )}
+      {ticket?.jira && (
+        <p className="tl-hint" style={{ padding: "0 24px" }}>
+          Importiert aus Jira:{" "}
+          <a href={ticket.jira.url} target="_blank" rel="noreferrer">
+            {ticket.jira.key} ↗
+          </a>
+        </p>
+      )}
       <div hidden={tab !== "details"}>
         <form onSubmit={save} className="tl-form">
           {error && (
