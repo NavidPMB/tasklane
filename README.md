@@ -17,10 +17,12 @@ Built with **Django, Next.js and PostgreSQL**. The interface is currently in **G
 - Organize work into epics, tickets and nested subtickets.
 - Assign multiple teammates, add tags, set priorities and due dates.
 - Switch between a drag-and-drop board and a hierarchical list.
+- Log time per ticket with a work date, duration and note; edit your own entries.
+- Report time per person, project, ticket and day, filter by period, and export CSV.
 - Search and combine filters for status, assignee, tag, epic and ticket type.
 - Start with four status categories: **Open → In progress → Done → Closed**.
 - Insert and reorder custom statuses within those categories. Board columns, selectors and MCP use the same live status list.
-- Connect a local MCP client to **18 tools** for projects, members, tickets, tags and statuses.
+- Connect a local MCP client to **24 tools** for projects, members, tickets, tags and statuses.
 - Use the built-in wiki with public, member-only and superuser-only articles.
 
 ## Quick start
@@ -113,7 +115,7 @@ make mcp-check MCP_EMAIL=you@example.com
 The check performs MCP initialization, discovers the tools and makes a read-only `list_projects` call. An empty project list is fine:
 
 ```text
-MCP OK: 18 tools discovered, 0 accessible projects.
+MCP OK: 24 tools discovered, 0 accessible projects.
 ```
 
 The server needs an **existing active account**. It rechecks account status and project access on every call. The email selects the account for a trusted local process; it is not a remote authentication token. This release does not expose an HTTP MCP endpoint.
@@ -137,10 +139,23 @@ Ask the assistant to call `list_projects` and `get_project` or `list_statuses` f
 | Workflow | `list_statuses`, `create_status`, `update_status`, `delete_status` |
 | Tags | `create_tag`, `update_tag`, `delete_tag` |
 | Tickets | `list_tickets`, `get_ticket`, `create_ticket`, `update_ticket`, `delete_ticket` |
+| Time tracking | `create_time_entry`, `update_time_entry`, `delete_time_entry`, `list_time_entries`, `get_time_report`, `export_time_report` |
 
 `create_ticket` with `kind: "epic"` creates an epic; `parent_id` creates a hierarchy. `assignee_ids` and `tag_ids` replace the corresponding lists. `list_tickets` supports search, filters and pagination.
 
 Browser changes are refreshed immediately after saving. Changes from another client—including MCP—are fetched every **10 seconds** while the page is active, and when the window regains focus.
+
+## Time tracking and team reports
+
+Open a ticket or epic and choose **Zeit erfassen** to book your own work time. Enter the date, hours, minutes and an optional note. Entries are manual, between 1 minute and 24 hours, and can be booked for today or a past day. Ticket cards show their total logged time.
+
+Use **Zeiten & Berichte** in the dashboard to see how much each person worked. Filter by project, person and inclusive date range; the default is month-to-date across your accessible projects. Reports group time by person, project, ticket and day. The **CSV export** includes all matching entries, even when the on-screen list spans multiple pages.
+
+Only the person who booked an entry can edit or delete it. Project members can read their team's entries. Bookings stay in reports when a member leaves; tickets with logged time are kept instead of being deleted. Subticket time belongs to that subticket and is not double-counted in its parent epic.
+
+MCP supports the same workflow: `create_time_entry` (duration as integer `minutes`, date as `YYYY-MM-DD`), `update_time_entry`, `delete_time_entry`, `list_time_entries`, `get_time_report`, and `export_time_report`. Reports without a project filter cover only projects the connected account can access. Example: “Book 90 minutes on WEB-3 today, then show this month's total per person.”
+
+See the [time tracking guide](docs/time-tracking.md) or `/wiki/tasklane-arbeitszeit` after signing in.
 
 ## Configuration
 

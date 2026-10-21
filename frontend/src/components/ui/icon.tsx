@@ -1,6 +1,7 @@
 import type { SVGProps } from "react";
 
 const paths = {
+  clock: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM12 7v5l3 2",
   plus: "M12 5v14M5 12h14",
   board: "M3 4h18v16H3zM9 4v16M15 4v16M5 8h2m4 0h2m4 0h2M5 12h2m4 0h2",
   search: "M20 20l-5-5M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z",

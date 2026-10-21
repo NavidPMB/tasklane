@@ -14,6 +14,7 @@ export const navigation: Record<
     items: [
       { href: "/dashboard", label: "Board & Tickets", icon: "board" },
       { href: "/dashboard/projects", label: "Projekte", icon: "layers" },
+      { href: "/dashboard/time", label: "Zeiten & Berichte", icon: "clock" },
       { href: "/dashboard/mcp", label: "MCP-Anbindung", icon: "terminal" },
       { href: "/dashboard/account", label: "Mein Konto", icon: "user" },
     ],

@@ -14,6 +14,7 @@ import {
 import { ProjectForm } from "./project-form";
 import { TicketForm } from "./ticket-form";
 import { WorkflowSettings } from "./workflow-settings";
+import { formatMinutes } from "@/lib/time";
 
 type Editor = {
   ticket?: Ticket;
@@ -274,6 +275,12 @@ export function TicketWorkspace({
     return (
       <>
         <div className="tl-ticket-labels">
+          {ticket.logged_minutes > 0 && (
+            <span className="tl-time-badge" title="Gebuchte Arbeitszeit">
+              <Icon name="clock" width={11} height={11} />
+              {formatMinutes(ticket.logged_minutes)}
+            </span>
+          )}
           <span className={`tl-kind tl-kind-${ticket.kind}`}>
             {ticket.kind === "epic"
               ? "Epic"
@@ -442,6 +449,13 @@ export function TicketWorkspace({
                       <Icon name="settings" width={16} height={16} />
                       Workflow & Team
                     </button>
+                    <Link
+                      className="tl-secondary"
+                      href={`/dashboard/time?project=${data.project.id}`}
+                    >
+                      <Icon name="clock" width={16} height={16} />
+                      Zeiten & Berichte
+                    </Link>
                   </>
                 )}
               </div>

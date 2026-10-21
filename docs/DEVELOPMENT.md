@@ -14,6 +14,16 @@ Ticket- und Projektfunktionen liegen in `backend/modules/work/`. HTTP und MCP te
 
 `make mcp-config MCP_EMAIL=you@example.com` gibt eine JSON-Konfiguration mit absoluten Pfaden des aktuellen Checkouts aus. `make mcp-check MCP_EMAIL=you@example.com` prüft die echte stdio-Verbindung anhand von Tool-Discovery und `list_projects`, ohne Daten zu ändern. Die E-Mail muss zu einem bestehenden aktiven lokalen Konto gehören. Beide Hilfen setzen die virtuelle Python-Umgebung voraus.
 
+## Zeitbuchungen und Berichte
+
+`modules.work.TimeEntry` speichert Datum, ganze Minuten (1–1440), Notiz, Ticket und die buchende Person. Die Autorenschaft kommt ausschließlich aus der Sitzung bzw. der MCP-Identität. Fremde Buchungen dürfen auch von der Projektleitung nicht verändert werden; lesender Zugriff folgt der aktuellen Projektmitgliedschaft. Buchungen bleiben bei Mitgliedschaftsentzug erhalten, Tickets mit Buchungen sind vor dem Löschen geschützt. Es gibt keinen laufenden Timer und keine automatische Verrechnung von Untertickets auf Epics.
+
+Die sechs Zeit-Werkzeuge sind in derselben `OPERATIONS`-Registry wie die Ticketaktionen registriert. Schreibaktionen bleiben CSRF-geschützte `POST /api/work/actions/`. Lesende Browserrouten sind `/api/work/time/entries/`, `/api/work/time/report/` und `/api/work/time/export/`. Optionale Filter: `project_id`, `user_id`, `date_from`, `date_to`; Buchungslisten zusätzlich `ticket_id`, `offset`, `limit`. Zeiträume sind inklusive, Berichte standardmäßig vom Monatsanfang bis heute. Ohne Projektfilter werden nur aktuell zugängliche Projekte summiert. Buchungslisten ohne Datumsfilter zeigen die gesamte Historie.
+
+Summen werden in PostgreSQL als ganze Minuten berechnet. Ticketantworten enthalten `logged_minutes`; Listen laden diese Summe über eine Annotation, ohne M2M-Zuweisungen mitzusummieren. Ein Buchungstag ist ein Kalendertag mit einer Buchung. CSV verwendet Semikolon und UTF-8-BOM; Textfelder mit Formelpräfixen werden geschützt. Exporte verwenden dieselben Zugriffs- und Filterregeln wie Berichte. `expected_updated_at` schützt optional vor konkurrierenden Korrekturen.
+
+[Benutzeranleitung](time-tracking.md), auch unter `/wiki/tasklane-arbeitszeit` mit Sichtbarkeit `registered`. Migration `work.0004_time_guide` legt den eingefrorenen Ausgangsstand an, ohne bestehende Wiki-Artikel zu überschreiben. Die Tests in `modules.work.test_time` prüfen Summen, Filter, Datum und Dauer, Autorenschaft, Mitgliedschaftsentzug, CSV und echte MCP-Aufrufe.
+
 ## Passwortanmeldung
 
 `POST /api/auth/login/` in `accounts.views.password_login` nimmt ausschließlich ein JSON-Objekt mit `email` und `password` an. Die Anfrage benötigt den CSRF-Token aus `GET /api/auth/session/` sowie das zugehörige Cookie. Erfolgreiche Anmeldung nutzt Django-Sitzungen mit HttpOnly-Cookies und rotiert Sitzungsschlüssel und CSRF-Token. Der Client wechselt anschließend auf `/dashboard`; Passwörter und Tokens werden nicht im Browser-Speicher abgelegt.

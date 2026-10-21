@@ -88,3 +88,21 @@ class Ticket(models.Model):
 
     def __str__(self):
         return f'{self.project.key}-{self.number} · {self.title}'
+
+
+class TimeEntry(models.Model):
+    ticket = models.ForeignKey(Ticket, on_delete=models.PROTECT, related_name='time_entries')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='time_entries')
+    work_date = models.DateField()
+    minutes = models.PositiveSmallIntegerField()
+    note = models.TextField(blank=True, max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-work_date', '-created_at', '-id']
+        constraints = [models.CheckConstraint(condition=models.Q(minutes__gte=1, minutes__lte=1440), name='work_time_minutes_valid')]
+        indexes = [
+            models.Index(fields=['ticket', 'work_date'], name='work_time_ticket_date'),
+            models.Index(fields=['user', 'work_date'], name='work_time_user_date'),
+        ]

@@ -32,6 +32,7 @@ export type Ticket = {
   due_date: string | null;
   created_at: string;
   updated_at: string;
+  logged_minutes: number;
 };
 export type ProjectData = {
   project: Project;

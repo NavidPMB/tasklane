@@ -40,7 +40,7 @@ Beispiel für einen stdio-Client; absolute Pfade an den Checkout anpassen:
 
 Die angemeldete Seite `/dashboard/mcp` erzeugt diese Konfiguration mit lokalen Pfaden und der eigenen E-Mail. Der Prozess ist eine lokale Verbindung für einen vertrauenswürdigen Host mit Dateisystem- und Datenbankzugriff. Es wird kein HTTP-MCP-Endpunkt und kein Fernzugriff veröffentlicht; dafür wäre ein separates Authentifizierungskonzept erforderlich. Anmeldedaten oder Sitzungstokens gehören nicht in MCP-Argumente.
 
-Der Server bietet 18 Werkzeuge für Projekte, Mitgliedschaft, Status, Tags und Tickets. `list_projects` → `get_project` / `list_statuses` liefert den aktuellen Kontext. `create_ticket` mit `kind: "epic"` erstellt ein Epic; `parent_id` verknüpft Untertickets. `assignee_ids` und `tag_ids` sind ersetzende Listen. Bei `update_ticket` bleiben ausgelassene Felder unverändert; `null` löst Eltern-Ticket oder Datum. Domainfehler werden als MCP-Toolfehler zurückgegeben. Protokollausgaben laufen über stdout, Diagnose über stderr.
+Der Server bietet 24 Werkzeuge für Projekte, Mitgliedschaft, Status, Tags und Tickets. `list_projects` → `get_project` / `list_statuses` liefert den aktuellen Kontext. `create_ticket` mit `kind: "epic"` erstellt ein Epic; `parent_id` verknüpft Untertickets. `assignee_ids` und `tag_ids` sind ersetzende Listen. Bei `update_ticket` bleiben ausgelassene Felder unverändert; `null` löst Eltern-Ticket oder Datum. Domainfehler werden als MCP-Toolfehler zurückgegeben. Protokollausgaben laufen über stdout, Diagnose über stderr.
 
 ## Prüfen und Wiki
 

@@ -1,13 +1,17 @@
 """Gemeinsame Fachlogik für Browser-API und MCP. Keine Berechtigungslogik im Client."""
 from datetime import date
+import csv
+from io import StringIO
 import re
 
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum, Value
+from django.db.models.functions import Coalesce
+from django.utils import timezone
 from jsonschema import Draft202012Validator
 
-from .models import Project, Status, Tag, Ticket
+from .models import Project, Status, Tag, Ticket, TimeEntry
 
 
 class WorkError(Exception):
@@ -56,10 +60,11 @@ def statuses_for(project):
 
 
 def ticket_query(project):
-    return project.tickets.select_related('project').prefetch_related('tags', 'assignees')
+    return project.tickets.select_related('project').prefetch_related('tags', 'assignees').annotate(logged_minutes=Coalesce(Sum('time_entries__minutes'), Value(0)))
 
 
 def ticket_data(ticket):
+    logged_minutes = getattr(ticket, 'logged_minutes', None)
     return {
         'id': ticket.pk, 'key': f'{ticket.project.key}-{ticket.number}',
         'project_id': ticket.project_id, 'title': ticket.title,
@@ -68,6 +73,7 @@ def ticket_data(ticket):
         'tag_ids': [t.pk for t in ticket.tags.all()], 'priority': ticket.priority,
         'due_date': ticket.due_date.isoformat() if ticket.due_date else None,
         'created_at': ticket.created_at.isoformat(), 'updated_at': ticket.updated_at.isoformat(),
+        'logged_minutes': logged_minutes if logged_minutes is not None else ticket.time_entries.aggregate(total=Sum('minutes'))['total'] or 0,
     }
 
 
@@ -298,8 +304,137 @@ def delete_ticket(user, project_id, ticket_id):
     ticket = related(project_for(user, project_id), 'tickets', ticket_id, 'Ticket')
     if ticket.children.exists():
         raise WorkError('Zuerst untergeordnete Tickets umhängen oder löschen.')
+    if ticket.time_entries.exists():
+        raise WorkError('Tickets mit Zeitbuchungen bleiben für die Berichte erhalten. Bitte stattdessen schließen.')
     ticket.delete()
     return {'deleted': True}
+
+
+def parse_work_date(value):
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        raise WorkError('Bitte ein gültiges Datum im Format JJJJ-MM-TT angeben.')
+
+
+def time_entry_data(entry, user):
+    return {
+        'id': entry.pk, 'project_id': entry.ticket.project_id,
+        'project_name': entry.ticket.project.name,
+        'ticket_id': entry.ticket_id, 'ticket_key': f'{entry.ticket.project.key}-{entry.ticket.number}',
+        'ticket_title': entry.ticket.title, 'user': person(entry.user),
+        'work_date': entry.work_date.isoformat(), 'minutes': entry.minutes, 'note': entry.note,
+        'can_edit': entry.user_id == user.pk, 'updated_at': entry.updated_at.isoformat(),
+    }
+
+
+def validate_time_fields(work_date):
+    parsed = parse_work_date(work_date)
+    if parsed > timezone.localdate():
+        raise WorkError('Arbeitszeit kann nicht für ein zukünftiges Datum gebucht werden.')
+    return parsed
+
+
+def create_time_entry(user, project_id, ticket_id, work_date, minutes, note=''):
+    ticket = related(project_for(user, project_id), 'tickets', ticket_id, 'Ticket')
+    entry = TimeEntry.objects.create(ticket=ticket, user=user, work_date=validate_time_fields(work_date), minutes=minutes, note=note.strip())
+    return time_entry_data(entry, user)
+
+
+def own_time_entry(user, project_id, entry_id, expected_updated_at=None):
+    project = project_for(user, project_id)
+    entry = TimeEntry.objects.select_related('ticket__project', 'user').filter(ticket__project=project, pk=entry_id).first()
+    if not entry:
+        raise WorkError('Zeitbuchung nicht gefunden.', 404)
+    if entry.user_id != user.pk:
+        raise WorkError('Zeitbuchungen können nur von der Person geändert werden, die sie erfasst hat.', 403)
+    if expected_updated_at is not None and entry.updated_at.isoformat() != expected_updated_at:
+        raise WorkError('Diese Zeitbuchung wurde inzwischen geändert. Bitte neu laden.', 409)
+    return entry
+
+
+def update_time_entry(user, project_id, entry_id, work_date=None, minutes=None, note=None, expected_updated_at=None):
+    entry = own_time_entry(user, project_id, entry_id, expected_updated_at)
+    if work_date is not None:
+        entry.work_date = validate_time_fields(work_date)
+    if minutes is not None:
+        entry.minutes = minutes
+    if note is not None:
+        entry.note = note.strip()
+    entry.save()
+    return time_entry_data(entry, user)
+
+
+def delete_time_entry(user, project_id, entry_id, expected_updated_at=None):
+    own_time_entry(user, project_id, entry_id, expected_updated_at).delete()
+    return {'deleted': True}
+
+
+def time_scope(user, project_id=None, ticket_id=None, user_id=None, date_from=None, date_to=None):
+    projects = Project.objects.filter(Q(owner=user) | Q(members=user)).distinct()
+    if project_id is not None:
+        project_for(user, project_id)
+        projects = projects.filter(pk=project_id)
+    entries = TimeEntry.objects.filter(ticket__project__in=projects).select_related('ticket__project', 'user')
+    if ticket_id is not None:
+        if not Ticket.objects.filter(project__in=projects, pk=ticket_id).exists():
+            raise WorkError('Ticket nicht gefunden.', 404)
+        entries = entries.filter(ticket_id=ticket_id)
+    if user_id is not None:
+        entries = entries.filter(user_id=user_id)
+    start = parse_work_date(date_from) if date_from else None
+    end = parse_work_date(date_to) if date_to else None
+    if start and end and start > end:
+        raise WorkError('Der Beginn des Zeitraums muss vor oder am Ende liegen.')
+    if start:
+        entries = entries.filter(work_date__gte=start)
+    if end:
+        entries = entries.filter(work_date__lte=end)
+    return projects, entries
+
+
+def list_time_entries(user, project_id=None, ticket_id=None, user_id=None, date_from=None, date_to=None, offset=0, limit=100):
+    _, entries = time_scope(user, project_id, ticket_id, user_id, date_from, date_to)
+    totals = entries.aggregate(total_minutes=Coalesce(Sum('minutes'), Value(0)), total=Count('id'))
+    return {**totals, 'entries': [time_entry_data(entry, user) for entry in entries[offset:offset + limit]], 'offset': offset, 'limit': limit}
+
+
+def report_period(date_from, date_to):
+    today = timezone.localdate()
+    return date_from or today.replace(day=1).isoformat(), date_to or today.isoformat()
+
+
+def get_time_report(user, project_id=None, user_id=None, date_from=None, date_to=None):
+    date_from, date_to = report_period(date_from, date_to)
+    projects, entries = time_scope(user, project_id=project_id, user_id=user_id, date_from=date_from, date_to=date_to)
+    people = get_user_model().objects.filter(
+        Q(work_projects__in=projects) | Q(owned_projects__in=projects) | Q(time_entries__ticket__project__in=projects)
+    ).distinct().order_by('email')
+    people_data = [{**person(p), 'is_active': p.is_active} for p in people]
+    grouped = {row['user_id']: row for row in entries.order_by().values('user_id').annotate(minutes=Sum('minutes'), entry_count=Count('id'), ticket_count=Count('ticket_id', distinct=True), day_count=Count('work_date', distinct=True))}
+    users = [{**p, **{k: v for k, v in grouped.get(p['id'], {'minutes': 0, 'entry_count': 0, 'ticket_count': 0, 'day_count': 0}).items() if k != 'user_id'}} for p in people_data if user_id is None or p['id'] == user_id]
+    totals = entries.aggregate(total_minutes=Coalesce(Sum('minutes'), Value(0)), entry_count=Count('id'), ticket_count=Count('ticket_id', distinct=True), people_count=Count('user_id', distinct=True))
+    by_project = [{'id': row['ticket__project_id'], 'name': row['ticket__project__name'], 'key': row['ticket__project__key'], 'minutes': row['minutes']} for row in entries.order_by('ticket__project__name').values('ticket__project_id', 'ticket__project__name', 'ticket__project__key').annotate(minutes=Sum('minutes'))]
+    by_ticket = [{'id': row['ticket_id'], 'key': f"{row['ticket__project__key']}-{row['ticket__number']}", 'title': row['ticket__title'], 'project_id': row['ticket__project_id'], 'minutes': row['minutes']} for row in entries.order_by('ticket__project__key', 'ticket__number').values('ticket_id', 'ticket__project__key', 'ticket__number', 'ticket__title', 'ticket__project_id').annotate(minutes=Sum('minutes'))]
+    return {**totals, 'date_from': date_from, 'date_to': date_to, 'people': people_data, 'users': users,
+            'projects': by_project, 'tickets': by_ticket,
+            'days': [{'date': row['work_date'].isoformat(), 'minutes': row['minutes']} for row in entries.order_by('work_date').values('work_date').annotate(minutes=Sum('minutes'))]}
+
+
+def export_time_report(user, project_id=None, user_id=None, date_from=None, date_to=None):
+    date_from, date_to = report_period(date_from, date_to)
+    _, entries = time_scope(user, project_id=project_id, user_id=user_id, date_from=date_from, date_to=date_to)
+    output = StringIO()
+    output.write('\ufeff')
+    writer = csv.writer(output, delimiter=';')
+    writer.writerow(['Datum', 'Projekt', 'Ticket', 'Titel', 'Person', 'E-Mail', 'Minuten', 'Notiz'])
+    def safe(value):
+        text = str(value)
+        return "'" + text if text.lstrip().startswith(('=', '+', '-', '@')) or text.startswith(('\t', '\r', '\n')) else text
+    for entry in entries.order_by('work_date', 'user__email', 'id').iterator(chunk_size=500):
+        row = time_entry_data(entry, user)
+        writer.writerow([row['work_date'], safe(row['project_name']), row['ticket_key'], safe(row['ticket_title']), safe(row['user']['name']), safe(row['user']['email']), row['minutes'], safe(row['note'])])
+    return {'filename': f'tasklane-zeiten-{date_from}-{date_to}.csv', 'csv': output.getvalue()}
 
 
 # Dieselben Eingabeschemata gelten in der HTTP-API und in der MCP-Toolliste.
@@ -346,6 +481,16 @@ register(get_ticket, 'Ein Ticket mit Beschreibung, Hierarchie und Zuweisungen le
 register(create_ticket, 'Epic, Ticket oder Unterticket erstellen. parent_id verbindet die Hierarchie. status_id aus list_statuses/get_project verwenden; Standard ist Offen.', TICKET_FIELDS, ['title'], write=True)
 register(update_ticket, 'Ticketfelder gezielt ändern; ausgelassene Felder bleiben erhalten. null löst Eltern-Ticket oder Datum, leere ID-Listen lösen Tags/Zuweisungen. expected_updated_at schützt optional vor konkurrierenden Änderungen.', {'ticket_id': ID, 'expected_updated_at': TEXT(40), **TICKET_FIELDS}, ['ticket_id'], write=True)
 register(delete_ticket, 'Ticket ohne Untertickets löschen. Tickets mit Kindern müssen zuerst umgehängt werden.', {'ticket_id': ID}, ['ticket_id'], write=True)
+
+DATE = {'type': 'string', 'pattern': r'^\d{4}-\d{2}-\d{2}$'}
+TIME_FIELDS = {'work_date': DATE, 'minutes': {'type': 'integer', 'minimum': 1, 'maximum': 1440}, 'note': TEXT(2000)}
+TIME_FILTERS = {'project_id': ID, 'user_id': ID, 'date_from': DATE, 'date_to': DATE}
+register(create_time_entry, 'Eigene Arbeitszeit auf ein Ticket buchen: Datum (nicht in der Zukunft), ganze Minuten (1–1440) und optionale Notiz. Person ist immer das angemeldete Konto.', {'ticket_id': ID, **TIME_FIELDS}, ['ticket_id', 'work_date', 'minutes'], write=True)
+register(update_time_entry, 'Eigene Zeitbuchung korrigieren. Fremde Buchungen können auch von der Projektleitung nicht verändert werden. expected_updated_at schützt vor Konflikten.', {'entry_id': ID, 'expected_updated_at': TEXT(40), **TIME_FIELDS}, ['entry_id'], write=True)
+register(delete_time_entry, 'Eigene Zeitbuchung löschen; fremde Buchungen bleiben geschützt.', {'entry_id': ID, 'expected_updated_at': TEXT(40)}, ['entry_id'], write=True)
+register(list_time_entries, 'Zeitbuchungen mit Projekt, Ticket, Person, Datum, Minuten und Notiz lesen. Filter optional, ohne Zeitraum alle Buchungen; paginiert. Nur zugängliche Projekte.', {**TIME_FILTERS, 'ticket_id': ID, 'offset': {'type': 'integer', 'minimum': 0}, 'limit': {'type': 'integer', 'minimum': 1, 'maximum': 200}}, project=False)
+register(get_time_report, 'Arbeitszeit pro Person, Projekt, Ticket und Tag summieren. Ohne Projektfilter alle zugänglichen Projekte. Zeitraum inklusive beider Tage; Standard ist Monatsbeginn bis heute. Historische Buchungen entfernter Mitglieder bleiben enthalten.', TIME_FILTERS, project=False)
+register(export_time_report, 'Zeitbericht als UTF-8-CSV mit Semikolon exportieren. Dieselben Projekt-, Personen- und Zeitraumfilter wie get_time_report. Enthält die einzelnen Buchungen; verändert keine Daten.', TIME_FILTERS, project=False)
 
 
 def execute(user, action, arguments):

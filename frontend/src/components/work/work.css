@@ -1164,3 +1164,318 @@
     transition: none;
   }
 }
+
+.tl-time-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  padding: 3px 5px;
+  border-radius: 3px;
+  color: var(--color-primary);
+  background: color-mix(
+    in srgb,
+    var(--color-secondary) 10%,
+    var(--color-surface)
+  );
+}
+.tl-time-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  margin-bottom: 22px;
+  background: var(--color-background);
+}
+.tl-time-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tl-time-summary strong {
+  font-size: 24px;
+  letter-spacing: -0.5px;
+}
+.tl-time-form {
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--color-border);
+}
+.tl-time-form h3 {
+  font-size: 14px;
+  margin: 0;
+}
+.tl-time-inputs {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 12px;
+}
+.tl-time-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.tl-time-form-footer > div {
+  display: flex;
+  gap: 8px;
+}
+.tl-time-notice {
+  font-size: 12px;
+  color: var(--color-primary);
+  padding: 10px 0;
+}
+.tl-time-history-heading {
+  font-size: 14px;
+  margin: 24px 0 10px;
+}
+.tl-time-entry {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.tl-time-entry-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 11px;
+}
+.tl-time-entry-top > span {
+  color: var(--color-muted);
+}
+.tl-time-entry-top > div {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+.tl-time-entry p {
+  font-size: 12px;
+  color: var(--color-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 9px 0 0;
+}
+.tl-time-pagination {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  font-size: 11px;
+  color: var(--color-muted);
+}
+.tl-report-filters {
+  display: flex;
+  gap: 14px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+  padding: 18px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+}
+.tl-report-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 11px;
+  flex: 1;
+  min-width: 140px;
+}
+.tl-report-filters input,
+.tl-report-filters select {
+  min-width: 0;
+  width: 100%;
+  height: 38px;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 12px;
+}
+.tl-period-presets {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.tl-period-presets button {
+  font-size: 10px;
+  padding: 8px;
+}
+.tl-report-note {
+  margin: 15px 0 22px;
+}
+.tl-report-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+.tl-report-panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  padding: 20px;
+  min-width: 0;
+}
+.tl-report-panel h2 {
+  font-size: 15px;
+  margin: 0 0 19px;
+  letter-spacing: -0.2px;
+}
+.tl-report-tickets,
+.tl-report-days {
+  margin-top: 22px;
+}
+.tl-report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  min-width: 420px;
+}
+.tl-report-table th {
+  font-size: 10px;
+  color: var(--color-muted);
+  font-weight: 500;
+  padding: 12px 14px;
+  text-align: left;
+  background: var(--color-background);
+  border-bottom: 1px solid var(--color-border);
+}
+.tl-report-table td {
+  padding: 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+.tl-report-table tr:last-child td {
+  border-bottom: none;
+}
+.tl-report-table td > strong {
+  font-weight: 500;
+  display: block;
+}
+.tl-report-table small {
+  display: block;
+  color: var(--color-muted);
+  font-size: 10px;
+  margin-top: 5px;
+}
+.tl-hours-bar {
+  width: 110px;
+  max-width: 100%;
+  height: 4px;
+  background: var(--color-background);
+  border-radius: 8px;
+  margin-top: 7px;
+}
+.tl-hours-bar > span {
+  height: 100%;
+  display: block;
+  background: var(--color-secondary);
+  border-radius: 8px;
+}
+.tl-project-times > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 0;
+  border-top: 1px solid var(--color-border);
+}
+.tl-project-times > div:first-child {
+  border: 0;
+  padding-top: 0;
+}
+.tl-project-times strong {
+  font-size: 12px;
+  font-weight: 500;
+}
+.tl-project-times > div > div {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.tl-project-times span {
+  font-size: 10px;
+  color: var(--color-muted);
+}
+.tl-day-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 12px;
+}
+.tl-day-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+.tl-day-grid time {
+  font-size: 10px;
+  color: var(--color-muted);
+}
+.tl-day-grid strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+.tl-entries-table {
+  min-width: 800px;
+}
+.tl-entry-note {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 250px;
+}
+@media (max-width: 1000px) {
+  .tl-report-grid {
+    grid-template-columns: 1fr;
+  }
+  .tl-time-reports .tl-stat-value {
+    font-size: 20px;
+  }
+}
+@media (max-width: 760px) {
+  .tl-time-form-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .tl-time-inputs {
+    grid-template-columns: 1.5fr 1fr 1fr;
+    gap: 8px;
+  }
+  .tl-time-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .tl-report-panel {
+    padding: 14px;
+  }
+  .tl-report-filters {
+    padding: 14px;
+    gap: 12px;
+  }
+  .tl-report-filters label {
+    min-width: 120px;
+    flex-basis: 40%;
+  }
+  .tl-period-presets {
+    width: 100%;
+  }
+  .tl-time-reports .tl-stats {
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  .tl-time-reports .tl-stats > div:nth-child(2) {
+    border-right: 0;
+  }
+  .tl-time-entry-top > div {
+    width: 100%;
+    margin-left: 0;
+  }
+}

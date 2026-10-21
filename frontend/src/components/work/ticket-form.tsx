@@ -7,6 +7,8 @@ import {
   workAction,
 } from "@/lib/work";
 import { WorkDialog } from "./dialog";
+import { TicketTime } from "./ticket-time";
+import { formatMinutes } from "@/lib/time";
 
 export function TicketForm({
   data,
@@ -26,6 +28,9 @@ export function TicketForm({
   onSaved: () => Promise<void>;
 }) {
   const [kind, setKind] = useState(ticket?.kind || initialKind || "ticket");
+  const [tab, setTab] = useState("details");
+  const loggedMinutes =
+    data.tickets.find((t) => t.id === ticket?.id)?.logged_minutes || 0;
   const [parent, setParent] = useState(
     String(ticket?.parent_id || parentId || ""),
   );
@@ -121,180 +126,212 @@ export function TicketForm({
       onClose={onClose}
       wide
     >
-      <form onSubmit={save} className="tl-form">
-        {error && (
-          <p className="tl-error" role="alert">
-            {error}
-          </p>
-        )}
-        <label>
-          Titel
-          <input
-            name="title"
-            defaultValue={ticket?.title}
-            required
-            maxLength={200}
-            placeholder="Was ist zu tun?"
-            autoFocus
-          />
-        </label>
-        <label>
-          Beschreibung
-          <textarea
-            name="description"
-            defaultValue={ticket?.description}
-            rows={5}
-            maxLength={20000}
-            placeholder="Kontext, Ziel und nächste Schritte …"
-          />
-        </label>
-        <div className="tl-form-grid">
+      {ticket && (
+        <div className="tl-tabs tl-settings-tabs">
+          <button
+            type="button"
+            className={tab === "details" ? "active" : ""}
+            onClick={() => setTab("details")}
+          >
+            Ticketdetails
+          </button>
+          <button
+            type="button"
+            className={tab === "time" ? "active" : ""}
+            onClick={() => setTab("time")}
+          >
+            Zeit erfassen
+            {loggedMinutes > 0 ? ` · ${formatMinutes(loggedMinutes)}` : ""}
+          </button>
+        </div>
+      )}
+      <div hidden={tab !== "details"}>
+        <form onSubmit={save} className="tl-form">
+          {error && (
+            <p className="tl-error" role="alert">
+              {error}
+            </p>
+          )}
           <label>
-            Typ
-            <select
-              value={kind}
-              onChange={(e) => setKind(e.target.value as "epic" | "ticket")}
-            >
-              <option value="ticket">Ticket</option>
-              <option value="epic">Epic</option>
-            </select>
-          </label>
-          <label>
-            Status
-            <select
-              name="status_id"
-              defaultValue={
-                ticket?.status_id || initialStatus || data.statuses[0]?.id
-              }
-              required
-            >
-              {data.categories.map((c) => (
-                <optgroup label={c.name} key={c.id}>
-                  {data.statuses
-                    .filter((s) => s.category === c.id)
-                    .map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                </optgroup>
-              ))}
-            </select>
-          </label>
-          <label>
-            Priorität
-            <select name="priority" defaultValue={ticket?.priority || "normal"}>
-              {Object.entries(priorities).map(([id, name]) => (
-                <option key={id} value={id}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Fällig am
+            Titel
             <input
-              type="date"
-              name="due_date"
-              defaultValue={ticket?.due_date || ""}
+              name="title"
+              defaultValue={ticket?.title}
+              required
+              maxLength={200}
+              placeholder="Was ist zu tun?"
+              autoFocus
             />
           </label>
-        </div>
-        {kind !== "epic" && (
           <label>
-            Übergeordnetes Epic / Ticket
-            <select value={parent} onChange={(e) => setParent(e.target.value)}>
-              <option value="">Kein übergeordnetes Ticket</option>
-              {data.tickets
-                .filter((t) => !blockedParents.has(t.id))
-                .map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.kind === "epic" ? "Epic · " : ""}
-                    {t.key} · {t.title}
+            Beschreibung
+            <textarea
+              name="description"
+              defaultValue={ticket?.description}
+              rows={5}
+              maxLength={20000}
+              placeholder="Kontext, Ziel und nächste Schritte …"
+            />
+          </label>
+          <div className="tl-form-grid">
+            <label>
+              Typ
+              <select
+                value={kind}
+                onChange={(e) => setKind(e.target.value as "epic" | "ticket")}
+              >
+                <option value="ticket">Ticket</option>
+                <option value="epic">Epic</option>
+              </select>
+            </label>
+            <label>
+              Status
+              <select
+                name="status_id"
+                defaultValue={
+                  ticket?.status_id || initialStatus || data.statuses[0]?.id
+                }
+                required
+              >
+                {data.categories.map((c) => (
+                  <optgroup label={c.name} key={c.id}>
+                    {data.statuses
+                      .filter((s) => s.category === c.id)
+                      .map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                ))}
+              </select>
+            </label>
+            <label>
+              Priorität
+              <select
+                name="priority"
+                defaultValue={ticket?.priority || "normal"}
+              >
+                {Object.entries(priorities).map(([id, name]) => (
+                  <option key={id} value={id}>
+                    {name}
                   </option>
                 ))}
-            </select>
-          </label>
-        )}
-        <fieldset>
-          <legend>Zuweisen</legend>
-          <div className="tl-choices">
-            {data.members.map((u) => (
-              <label key={u.id} className="tl-choice">
-                <input
-                  type="checkbox"
-                  checked={assignees.includes(u.id)}
-                  onChange={() => setAssignees(toggle(assignees, u.id))}
-                />
-                <span className="tl-mini-avatar" aria-hidden="true">
-                  {u.name.charAt(0).toUpperCase()}
-                </span>
-                {u.name}
-              </label>
-            ))}
+              </select>
+            </label>
+            <label>
+              Fällig am
+              <input
+                type="date"
+                name="due_date"
+                defaultValue={ticket?.due_date || ""}
+              />
+            </label>
           </div>
-        </fieldset>
-        <fieldset>
-          <legend>Tags</legend>
-          {data.tags.length ? (
+          {kind !== "epic" && (
+            <label>
+              Übergeordnetes Epic / Ticket
+              <select
+                value={parent}
+                onChange={(e) => setParent(e.target.value)}
+              >
+                <option value="">Kein übergeordnetes Ticket</option>
+                {data.tickets
+                  .filter((t) => !blockedParents.has(t.id))
+                  .map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.kind === "epic" ? "Epic · " : ""}
+                      {t.key} · {t.title}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          )}
+          <fieldset>
+            <legend>Zuweisen</legend>
             <div className="tl-choices">
-              {data.tags.map((t) => (
-                <label key={t.id} className="tl-choice">
+              {data.members.map((u) => (
+                <label key={u.id} className="tl-choice">
                   <input
                     type="checkbox"
-                    checked={tags.includes(t.id)}
-                    onChange={() => setTags(toggle(tags, t.id))}
+                    checked={assignees.includes(u.id)}
+                    onChange={() => setAssignees(toggle(assignees, u.id))}
                   />
-                  {t.name}
+                  <span className="tl-mini-avatar" aria-hidden="true">
+                    {u.name.charAt(0).toUpperCase()}
+                  </span>
+                  {u.name}
                 </label>
               ))}
             </div>
-          ) : (
-            <p className="tl-hint">
-              Tags kannst du unter „Workflow & Team“ anlegen.
-            </p>
-          )}
-        </fieldset>
-        {children.length > 0 && (
-          <div className="tl-child-summary">
-            <strong>
-              {children.length} Unterticket{children.length > 1 ? "s" : ""}
-            </strong>
-            {children.map((t) => (
-              <p key={t.id}>
-                {t.key} · {t.title}
+          </fieldset>
+          <fieldset>
+            <legend>Tags</legend>
+            {data.tags.length ? (
+              <div className="tl-choices">
+                {data.tags.map((t) => (
+                  <label key={t.id} className="tl-choice">
+                    <input
+                      type="checkbox"
+                      checked={tags.includes(t.id)}
+                      onChange={() => setTags(toggle(tags, t.id))}
+                    />
+                    {t.name}
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="tl-hint">
+                Tags kannst du unter „Workflow & Team“ anlegen.
               </p>
-            ))}
-          </div>
-        )}
-        <div className="tl-form-actions">
-          {ticket && (
+            )}
+          </fieldset>
+          {children.length > 0 && (
+            <div className="tl-child-summary">
+              <strong>
+                {children.length} Unterticket{children.length > 1 ? "s" : ""}
+              </strong>
+              {children.map((t) => (
+                <p key={t.id}>
+                  {t.key} · {t.title}
+                </p>
+              ))}
+            </div>
+          )}
+          <div className="tl-form-actions">
+            {ticket && (
+              <button
+                type="button"
+                className="tl-danger tl-plain-button"
+                disabled={busy || children.length > 0}
+                onClick={remove}
+              >
+                Löschen
+              </button>
+            )}
             <button
               type="button"
-              className="tl-danger tl-plain-button"
-              disabled={busy || children.length > 0}
-              onClick={remove}
+              className="tl-secondary"
+              onClick={onClose}
+              disabled={busy}
             >
-              Löschen
+              Abbrechen
             </button>
-          )}
-          <button
-            type="button"
-            className="tl-secondary"
-            onClick={onClose}
-            disabled={busy}
-          >
-            Abbrechen
-          </button>
-          <button className="button" disabled={busy}>
-            {busy
-              ? "Speichert …"
-              : ticket
-                ? "Änderungen speichern"
-                : "Erstellen"}
-          </button>
+            <button className="button" disabled={busy}>
+              {busy
+                ? "Speichert …"
+                : ticket
+                  ? "Änderungen speichern"
+                  : "Erstellen"}
+            </button>
+          </div>
+        </form>
+      </div>
+      {ticket && (
+        <div hidden={tab !== "time"}>
+          <TicketTime ticket={ticket} onSaved={onSaved} />
         </div>
-      </form>
+      )}
     </WorkDialog>
   );
 }

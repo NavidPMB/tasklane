@@ -65,6 +65,11 @@ export default async function McpPage() {
           <p>
             „Weise WEB-3 einem Projektmitglied zu und setze den Tag Frontend.“
           </p>
+          <p>„Buche heute 90 Minuten Entwicklung auf WEB-3.“</p>
+          <p>
+            „Zeige die gebuchte Arbeitszeit dieses Monats pro Person und
+            Projekt.“
+          </p>
         </div>
       </section>
       <section className="tl-mcp-section">
@@ -89,6 +94,13 @@ export default async function McpPage() {
             <p>
               Status lesen, ergänzen, umsortieren und mit Ersatzstatus
               entfernen. Tags verwalten.
+            </p>
+          </div>
+          <div>
+            <strong>Zeiterfassung & Berichte</strong>
+            <p>
+              Eigene Arbeitszeit buchen und korrigieren. Zeiten nach Person,
+              Projekt und Zeitraum auswerten oder als CSV exportieren.
             </p>
           </div>
         </div>
