@@ -15,7 +15,7 @@ services:
       retries: 20
 
   backend:
-    image: ghcr.io/navidpmb/tasklane-backend:${TASKLANE_VERSION:-0.2.0}
+    image: ghcr.io/navidpmb/tasklane-backend:${TASKLANE_VERSION:-0.2.1}
     build:
       context: .
       dockerfile: deploy/backend.Dockerfile
@@ -41,7 +41,7 @@ services:
     stop_grace_period: 40s
 
   frontend:
-    image: ghcr.io/navidpmb/tasklane-frontend:${TASKLANE_VERSION:-0.2.0}
+    image: ghcr.io/navidpmb/tasklane-frontend:${TASKLANE_VERSION:-0.2.1}
     build:
       context: .
       dockerfile: deploy/frontend.Dockerfile

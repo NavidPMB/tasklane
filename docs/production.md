@@ -7,7 +7,7 @@ Tasklane läuft unabhängig von LeonLab oder anderen Anwendungen. Oberfläche, A
 Die Domain, beispielsweise `tasks.example.com`, muss per DNS auf den Server zeigen. Eingehende Ports 80 und 443 freigeben. Backend und Datenbank werden nicht öffentlich veröffentlicht.
 
 ```bash
-git clone --branch v0.2.0 https://github.com/NavidPMB/tasklane.git
+git clone --branch v0.2.1 https://github.com/NavidPMB/tasklane.git
 cd tasklane
 python3 scripts/init_production.py --domain tasks.example.com
 make production-build

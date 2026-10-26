@@ -87,3 +87,7 @@ Die [technische Anleitung](development/standalone-service.md) beschreibt die 63 
 `make release-smoke` prüft eine isolierte Docker-Installation tatsächlich über HTTPS, inklusive Anmeldung, Dateiübertragung, API/MCP, Widerruf und Persistenz nach Neustart. Die Release-Pipeline wiederholt CI vor der Veröffentlichung numerisch versionierter Images und Quellarchive. `VERSION`, Frontend-Version und Release-Hinweise gemeinsam pflegen. Die Anwendung erhält eigene Releases; LeonLab-Anbindung und separate Legacy-Migration sind nachgelagerte Arbeiten.
 
 Migration `work.0012_standalone_guides` ergänzt eingefrorene registrierte Benutzer-/Integrationshilfe sowie interne Betriebs-/Entwicklerartikel im gemeinsamen Wiki. Bestehende Artikel bleiben erhalten. Interne Inhalte sind ausschließlich für aktive Superuser sichtbar.
+
+Patch 0.2.1 verwendet bei `DEBUG` Djangos `ASGIStaticFilesHandler`, damit der lokale Uvicorn-Start auch Admin-Assets ausliefert. In Produktion verbleiben statische Dateien beim Proxy. Der Feldschlüssel-Generator erhält bei Namensduplikaten den gültigen Buchstabenpräfix auch für Namen, die mit Zahlen beginnen.
+
+`work.0013_standalone_guide_links` korrigiert Wiki-interne Verweise und den ASGI-Entwicklungshinweis nur dann, wenn der Artikel noch exakt der eingefrorenen Ausgangsfassung entspricht. Redaktionelle Änderungen bleiben erhalten.

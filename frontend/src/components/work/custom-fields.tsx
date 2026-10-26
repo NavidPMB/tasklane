@@ -169,11 +169,12 @@ export function CustomFieldsSettings({
         .replace(/[^a-z0-9]+/g, "_")
         .replace(/^_+|_+$/g, "")
         .slice(0, 50) || "feld";
-    let key = /^[a-z]/.test(stem) ? stem : `feld_${stem}`;
+    const base = /^[a-z]/.test(stem) ? stem : `feld_${stem}`;
+    let key = base;
     let suffix = 1;
     while (data.custom_fields.some((f) => f.key === key)) {
       suffix++;
-      key = `${stem}_${suffix}`;
+      key = `${base}_${suffix}`;
     }
     const ok = await run("create_custom_field", {
       key,

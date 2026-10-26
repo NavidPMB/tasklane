@@ -3,6 +3,10 @@ from django.core.asgi import get_asgi_application
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 django_application = get_asgi_application()
+from django.conf import settings
+if settings.DEBUG:
+    from django.contrib.staticfiles.handlers import ASGIStaticFilesHandler
+    django_application = ASGIStaticFilesHandler(django_application)
 from modules.work.remote_mcp import create_remote_app
 mcp_application = create_remote_app()
 
