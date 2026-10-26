@@ -1752,3 +1752,246 @@
     grid-template-columns: 1fr;
   }
 }
+.tl-collaboration {
+  padding: 24px;
+}
+.tl-collaboration[hidden] {
+  display: none;
+}
+.tl-settings-tabs {
+  flex-wrap: wrap;
+}
+.tl-comments,
+.tl-attachments {
+  display: grid;
+  gap: 14px;
+  margin-top: 24px;
+}
+.tl-comment,
+.tl-attachment,
+.tl-checklist,
+.tl-field-row {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 18px;
+  background: var(--color-surface);
+}
+.tl-comment header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 13px;
+}
+.tl-comment time,
+.tl-attachment small {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+.tl-markdown {
+  font-size: 13px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+.tl-markdown pre {
+  white-space: pre-wrap;
+  padding: 12px;
+  background: var(--color-background);
+  border-radius: 7px;
+}
+.tl-markdown img {
+  max-width: 100%;
+}
+.tl-markdown a {
+  color: var(--color-secondary);
+}
+.tl-description-preview {
+  margin: 8px 0 18px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+.tl-description-preview summary {
+  cursor: pointer;
+}
+.tl-upload-zone {
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  padding: 28px 16px;
+  border: 2px dashed var(--color-border);
+  border-radius: 12px;
+  background: var(--color-background);
+  text-align: center;
+}
+.tl-upload-zone span {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+.tl-upload-zone input {
+  max-width: 100%;
+  font-size: 12px;
+}
+.tl-attachment {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 14px;
+  font-size: 13px;
+}
+.tl-attachment a {
+  display: block;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  color: var(--color-primary);
+}
+.tl-attachment small {
+  display: block;
+  margin: 7px 0;
+}
+.tl-attachment > div {
+  min-width: 0;
+}
+.tl-attachment details {
+  font-size: 11px;
+  color: var(--color-muted);
+}
+.tl-attachment code {
+  overflow-wrap: anywhere;
+}
+.tl-checklist {
+  margin-top: 18px;
+}
+.tl-checklist h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.tl-checklist small {
+  color: var(--color-muted);
+  font-weight: 400;
+}
+.tl-checklist progress {
+  width: 100%;
+  height: 7px;
+  accent-color: var(--color-secondary);
+}
+.tl-checklist ul {
+  list-style: none;
+  margin: 18px 0;
+  padding: 0;
+}
+.tl-checklist li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(100px, 150px);
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.tl-checklist select {
+  width: 100%;
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 12px;
+}
+.tl-check-label {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 9px !important;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.tl-check-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-secondary);
+  flex-shrink: 0;
+}
+.tl-checklist-actions {
+  display: flex;
+  gap: 12px;
+  grid-column: 1/-1;
+}
+.tl-done-text {
+  text-decoration: line-through;
+  color: var(--color-muted);
+}
+.tl-activity {
+  list-style: none;
+  padding: 0;
+  margin: 18px 0;
+}
+.tl-activity li {
+  display: grid;
+  gap: 7px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 13px;
+}
+.tl-activity li span {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+.tl-field-row {
+  margin: 18px 0;
+}
+@media (max-width: 600px) {
+  .tl-collaboration {
+    padding: 18px;
+  }
+  .tl-checklist li {
+    grid-template-columns: 1fr;
+  }
+  .tl-attachment {
+    flex-wrap: wrap;
+  }
+}
+.tl-endpoint {
+  display: block;
+  padding: 12px;
+  background: var(--color-background);
+  border-radius: 7px;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+.tl-secret-panel {
+  border-color: var(--color-secondary);
+}
+.tl-secret-value {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: 16px;
+  background: var(--color-background);
+  border-radius: 8px;
+  line-height: 1.8;
+  font-size: 13px;
+}
+.tl-token-list article {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 18px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 13px;
+}
+.tl-token-list p {
+  margin: 8px 0;
+}
+.tl-token-list small {
+  color: var(--color-muted);
+  line-height: 1.7;
+}
+.tl-code-block {
+  overflow-x: auto;
+  padding: 18px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  font-size: 12px;
+  line-height: 1.9;
+}

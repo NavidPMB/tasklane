@@ -12,6 +12,9 @@ export type Session = {
     id: number;
     email: string;
     name: string;
+    firstName: string;
+    lastName: string;
+    hasPassword: boolean;
     isStaff: boolean;
     isSuperuser: boolean;
   } | null;

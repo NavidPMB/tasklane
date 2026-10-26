@@ -2,6 +2,7 @@
 import { useState, type FormEvent } from "react";
 import { type ProjectData, type Status, workAction } from "@/lib/work";
 import { WorkDialog } from "./dialog";
+import { CustomFieldsSettings } from "./custom-fields";
 
 export function WorkflowSettings({
   data,
@@ -55,6 +56,7 @@ export function WorkflowSettings({
         {[
           ["workflow", "Status"],
           ["tags", "Tags"],
+          ["fields", "Eigene Felder"],
           ["team", "Team & Projekt"],
         ].map(([id, label]) => (
           <button
@@ -76,6 +78,9 @@ export function WorkflowSettings({
         </p>
       )}
       <div className="tl-settings-body">
+        {tab === "fields" && (
+          <CustomFieldsSettings data={data} onSaved={onSaved} />
+        )}
         {tab === "workflow" && (
           <>
             <p className="tl-hint">

@@ -78,3 +78,27 @@ class PasswordLoginTests(TestCase):
             self.assertIn(response.status_code, [400, 413])
         self.assertEqual(self.browser.post('/api/auth/login/', 'email=x', content_type='text/plain', HTTP_X_CSRFTOKEN=self.token).status_code, 415)
         self.assertFalse(self.browser.get('/api/auth/session/').json()['authenticated'])
+
+
+class AccountSettingsTests(TestCase):
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        self.user=get_user_model().objects.create_user('profile@example.test',password='Old-fixture-password-4622')
+        self.client=Client(enforce_csrf_checks=True)
+        self.client.force_login(self.user)
+        self.token=self.client.get('/api/auth/session/').json()['csrfToken']
+
+    def post(self,args):
+        import json
+        return self.client.post('/api/auth/account/',json.dumps(args),content_type='application/json',HTTP_X_CSRFTOKEN=self.token)
+
+    def test_profile_csrf_identity_and_password_session(self):
+        import json
+        self.assertEqual(self.client.post('/api/auth/account/',json.dumps({'first_name':'A','last_name':'B'}),content_type='application/json').status_code,403)
+        self.assertEqual(self.post({'first_name':'Alex','last_name':'Team'}).status_code,200)
+        self.user.refresh_from_db();self.assertEqual(self.user.get_full_name(),'Alex Team')
+        self.assertEqual(self.post({'is_staff':True}).status_code,400)
+        self.assertEqual(self.post({'current_password':'Wrong','new_password':'New-fixture-password-6842','confirm_password':'New-fixture-password-6842'}).status_code,400)
+        self.assertEqual(self.post({'current_password':'Old-fixture-password-4622','new_password':'New-fixture-password-6842','confirm_password':'New-fixture-password-6842'}).status_code,200)
+        self.user.refresh_from_db();self.assertTrue(self.user.check_password('New-fixture-password-6842'))
+        self.assertTrue(self.client.get('/api/auth/session/').json()['authenticated'])

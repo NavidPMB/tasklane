@@ -25,7 +25,12 @@ Built with **Django, Next.js and PostgreSQL**. The interface is currently in **G
 - Search and combine filters for status, assignee, tag, epic and ticket type.
 - Start with four status categories: **Open → In progress → Done → Closed**.
 - Insert and reorder custom statuses within those categories. Board columns, selectors and MCP use the same live status list.
-- Connect a local MCP client to **40 tools** for projects, members, tickets, tags and statuses.
+- Discuss work with Markdown comments, multiple assigned checklists and a ticket activity history.
+- Upload private attachments from the browser or transfer their contents through API/MCP with SHA-256 checks.
+- Define eight typed custom fields for tickets or projects, with required values and archiving.
+- Connect local or remote MCP clients to **63 tools**, or integrate another application through the versioned HTTP API.
+- Run on your own HTTPS domain with persistent Docker services and independent releases.
+- Edit your profile and change your password in account settings.
 - Use the built-in wiki with public, member-only and superuser-only articles.
 
 ## Quick start
@@ -76,7 +81,20 @@ make stop
 
 Data stays in the local Docker volume and is available the next time you run `make dev`.
 
-## Connect an MCP assistant
+## Own domain, API and remote MCP
+
+For a complete self-hosted installation with HTTPS, persistent PostgreSQL, private files and your own login, follow the [production guide](docs/production.md). It includes backups, restores and versioned updates. No LeonLab installation is required.
+
+```bash
+python3 scripts/init_production.py --domain tasks.example.com
+make production-build
+make production-up
+make production-user
+```
+
+After login, open **API & MCP** to create a personal key with read/write/manage permissions, an expiry and an optional workspace restriction. The remote MCP endpoint is `https://tasks.example.com/mcp` (Streamable HTTP); the API is at `/api/v1` with schemas at `/api/v1/openapi.json`. Clients send `Authorization: Bearer …`. Keys follow the account’s current project permissions and can be revoked immediately. Remote clients need configurable Bearer headers; OAuth discovery/registration is not provided. See the [API and MCP guide](docs/api.md) and [ticket collaboration guide](docs/ticket-collaboration.md).
+
+## Connect a local MCP assistant
 
 Tasklane ships a **local stdio MCP server**. Your MCP client launches it as a subprocess. It uses the same PostgreSQL database and project permissions as the website. The web servers can be stopped; the database must be running.
 
@@ -106,7 +124,7 @@ Example output, with paths to replace:
 }
 ```
 
-You can also get a ready-to-copy configuration after logging in at **`/dashboard/mcp`**.
+The **API & MCP** page at `/dashboard/mcp` describes remote access and retains a local stdio command example.
 
 ### Verify the connection
 
@@ -118,10 +136,10 @@ make mcp-check MCP_EMAIL=you@example.com
 The check performs MCP initialization, discovers the tools and makes a read-only `list_projects` call. An empty project list is fine:
 
 ```text
-MCP OK: 40 tools discovered, 0 accessible projects.
+MCP OK: 63 tools discovered, 0 accessible projects.
 ```
 
-The server needs an **existing active account**. It rechecks account status and project access on every call. The email selects the account for a trusted local process; it is not a remote authentication token. This release does not expose an HTTP MCP endpoint.
+The server needs an **existing active account**. It rechecks account status and project access on every call. The email selects the account for a trusted local process; it is not a remote authentication token. For remote clients, use the separate authenticated `/mcp` endpoint described above.
 
 ### Things to ask your assistant
 
@@ -146,6 +164,11 @@ Ask the assistant to call `list_projects` and `get_project` or `list_statuses` f
 | Tags | `create_tag`, `update_tag`, `delete_tag` |
 | Tickets | `list_tickets`, `get_ticket`, `create_ticket`, `update_ticket`, `delete_ticket` |
 | Time tracking | `create_time_entry`, `update_time_entry`, `delete_time_entry`, `list_time_entries`, `get_time_report`, `export_time_report` |
+| Comments | `list_comments`, `create_comment`, `update_comment`, `delete_comment` |
+| Checklists | `list_checklists`, `create_checklist`, `update_checklist`, `delete_checklist`, `create_checklist_item`, `update_checklist_item`, `delete_checklist_item` |
+| Custom fields | `list_custom_fields`, `create_custom_field`, `update_custom_field` |
+| Activity | `list_activity` |
+| Private files | `list_attachments`, `start_attachment_upload`, `put_attachment_chunk`, `get_attachment_upload`, `complete_attachment_upload`, `cancel_attachment_upload`, `delete_attachment`, `read_attachment_chunk` |
 
 `create_ticket` with `kind: "epic"` creates an epic; `parent_id` creates a hierarchy. `assignee_ids` and `tag_ids` replace the corresponding lists. `list_tickets` supports search, filters and pagination.
 
@@ -226,6 +249,7 @@ See the [Google setup guide](docs/development/google-login-live.md) for details.
 ```bash
 make test    # PostgreSQL-backed backend tests, including real MCP stdio calls
 make check   # Django checks, migration checks and a Next.js production build
+make release-smoke  # Isolated HTTPS Docker install, API/MCP and restart persistence
 ```
 
 You can run the servers separately with `make backend` and `make frontend`. Stop a running Next.js server before a production build; development and production share the `.next` directory. After `make check`, a local production frontend can be run with `cd frontend && npm start` while `make backend` runs separately.
@@ -237,7 +261,7 @@ backend/
   integrations/       Encrypted integration credentials
   modules/work/       Projects, workflow, tags, tickets and shared MCP/API logic
   modules/wiki/       Articles with audience-based access
-  mcp_server.py       Local stdio MCP server
+  mcp_server.py       Shared MCP server (local stdio and remote HTTP)
 frontend/src/
   app/                Public pages, dashboard, admin and wiki
   components/work/    Board, hierarchy, forms and workflow settings
@@ -251,9 +275,9 @@ More documentation: [user guide](docs/tasklane-guide.md), [developer guide](docs
 
 ## Current scope
 
-Tasklane is a small local-first application. The project snapshot loads all tickets in that project; the MCP ticket search is paginated. Live updates use polling. Attachments, comments, email invitations, password-reset delivery, HTTP MCP and production deployment automation are not included.
+Tasklane is a self-hosted service with a small local development setup. The project snapshot loads all tickets in that project; ticket search, comments and activities support pagination. Live updates use polling. Jira imports do not copy source attachments/comments/worklogs; the ClickUp importer includes its separately verified historical times. Native attachments, comments and checklists work through the UI, API and MCP.
 
-The supplied Django development server and Compose database are intended for local use. Internet-facing deployments require their own HTTPS proxy, production application server, backups and shared rate-limit cache. See [development documentation](docs/DEVELOPMENT.md).
+Email invitations, automated password-reset delivery, public signup, OAuth authorization for MCP, a LeonLab SSO bridge and the separate full legacy migration are outside this release. Existing accounts can use email/password or optional Google login. For internet-facing deployment use the supplied HTTPS/ASGI stack and keep database, private-file and encryption-key backups as described in the [production guide](docs/production.md).
 
 ## License
 

@@ -28,11 +28,13 @@ export function TicketWorkspace({
   initialView = "board",
   initialProject,
   initialWorkspace,
+  initialTicket,
 }: {
   userId: number;
   initialView?: string;
   initialProject?: number;
   initialWorkspace?: number;
+  initialTicket?: number;
 }) {
   const [allProjects, setProjects] = useState<Project[]>([]);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -49,6 +51,15 @@ export function TicketWorkspace({
   selectedRef.current = selected;
   const [data, setData] = useState<ProjectData | null>(null);
   const [view, setView] = useState(initialView);
+  const openedInitialTicket = useRef(false);
+  useEffect(() => {
+    if (!data || !initialTicket || openedInitialTicket.current) return;
+    openedInitialTicket.current = true;
+    const target = data.tickets.find((t) => t.id === initialTicket);
+    if (target) setEditor({ ticket: target });
+    else
+      setError("Das verlinkte Ticket ist in diesem Projekt nicht verfügbar.");
+  }, [data, initialTicket]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -304,6 +315,17 @@ export function TicketWorkspace({
     return (
       <>
         <div className="tl-ticket-labels">
+          {ticket.checklist_total > 0 && (
+            <span className="tl-tag">
+              ✓ {ticket.checklist_done}/{ticket.checklist_total}
+            </span>
+          )}
+          {ticket.comment_count > 0 && (
+            <span className="tl-tag">{ticket.comment_count} Kommentare</span>
+          )}
+          {ticket.attachment_count > 0 && (
+            <span className="tl-tag">{ticket.attachment_count} Dateien</span>
+          )}
           {ticket.logged_minutes > 0 && (
             <span className="tl-time-badge" title="Gebuchte Arbeitszeit">
               <Icon name="clock" width={11} height={11} />
@@ -1007,6 +1029,7 @@ export function TicketWorkspace({
       )}
       {editor && data && (
         <TicketForm
+          userId={userId}
           data={data}
           {...editor}
           onClose={() => setEditor(null)}

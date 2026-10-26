@@ -11,13 +11,18 @@ const backend = (process.env.BACKEND_URL || "http://127.0.0.1:8002").replace(
 );
 
 export default {
+  output: "standalone",
   poweredByHeader: false,
   skipTrailingSlashRedirect: true,
   async rewrites() {
-    return ["api", "accounts", "django-admin", "static"].map((prefix) => ({
-      source: `/${prefix}/:path*`,
-      destination: `${backend}/${prefix}/:path*${prefix === "static" ? "" : "/"}`,
-    }));
+    return [
+      { source: "/mcp", destination: `${backend}/mcp` },
+      { source: "/api/v1/:path*", destination: `${backend}/api/v1/:path*` },
+      ...["api", "accounts", "django-admin", "static"].map((prefix) => ({
+        source: `/${prefix}/:path*`,
+        destination: `${backend}/${prefix}/:path*${prefix === "static" ? "" : "/"}`,
+      })),
+    ];
   },
   async headers() {
     return [

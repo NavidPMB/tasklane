@@ -38,3 +38,7 @@ Workspaces und Jira-Import: [Ausführliche Anleitung](workspaces-jira.md), auch 
 
 
 Unter **ClickUp-Import** kannst du abgeschlossene Aufgaben einschließlich historischer Arbeitszeiten übernehmen. [ClickUp-Anleitung](clickup-import.md), auch unter `/wiki/tasklane-clickup-import`.
+
+## Kommentare, Checklisten, Dateien und eigene Felder
+
+Tickets bieten Reiter für Details, Checklisten, Kommentare, private Anhänge, Verlauf und Zeit. Die [Anleitung zur Zusammenarbeit](/wiki/tasklane-zusammenarbeit) erklärt Bearbeitung, Zuweisung und Dateien. Eigene Felder richtet die Projektleitung unter **Workflow & Team → Eigene Felder** ein. Unter **Konto** lassen sich Profil und Passwort ändern; **API & MCP** erstellt persönliche Schlüssel für andere Anwendungen. Details: [Integrationshilfe](/wiki/tasklane-api-mcp).

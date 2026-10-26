@@ -16,7 +16,8 @@ def health(request):
             cursor.execute("SELECT 1")
     except DatabaseError:
         return JsonResponse({"status": "unavailable"}, status=503)
-    return JsonResponse({"status": "ok", "database": "postgresql"})
+    from .version import VERSION
+    return JsonResponse({"status": "ok", "database": "postgresql", "version": VERSION, "api_version": "1"})
 
 
 @never_cache
@@ -31,6 +32,7 @@ def session(request):
             "id": user.pk,
             "email": user.email,
             "name": user.get_full_name() or user.email,
+            "firstName": user.first_name, "lastName": user.last_name, "hasPassword": user.has_usable_password(),
             "isStaff": user.is_staff,
             "isSuperuser": user.is_superuser,
         } if user.is_authenticated else None,

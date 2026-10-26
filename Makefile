@@ -1,4 +1,4 @@
-.PHONY: env install db migrate setup user dev backend frontend mcp-config mcp-check check test stop
+.PHONY: env install db migrate setup user dev backend frontend mcp-config mcp-check check test stop production-build production-up production-user production-logs production-stop release-smoke
 
 env:
 	python3 scripts/init_env.py
@@ -44,3 +44,25 @@ test:
 
 stop:
 	docker compose stop
+
+
+# Eigenständiger HTTPS-Betrieb; .env.production mit scripts/init_production.py erzeugen.
+production-build:
+	docker compose --env-file .env.production -f compose.production.yaml build
+
+production-up:
+	docker compose --env-file .env.production -f compose.production.yaml up -d --wait
+
+production-user:
+	docker compose --env-file .env.production -f compose.production.yaml exec backend python manage.py createsuperuser
+
+production-logs:
+	docker compose --env-file .env.production -f compose.production.yaml logs --tail=100
+
+production-stop:
+	docker compose --env-file .env.production -f compose.production.yaml down
+
+release-smoke:
+	docker build -f deploy/backend.Dockerfile -t tasklane-backend:standalone-test .
+	docker build -f deploy/frontend.Dockerfile -t tasklane-frontend:standalone-test .
+	.venv/bin/python scripts/smoke_release.py

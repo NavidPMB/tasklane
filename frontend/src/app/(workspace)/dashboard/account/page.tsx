@@ -1,4 +1,5 @@
 import { PageHeading } from "@/components/ui/page-heading";
+import { AccountSettings } from "@/components/work/account-settings";
 import { requireUser } from "@/lib/auth";
 
 export default async function AccountPage() {
@@ -31,6 +32,11 @@ export default async function AccountPage() {
           </div>
         </dl>
       </section>
+      <AccountSettings
+        firstName={user.firstName}
+        lastName={user.lastName}
+        hasPassword={user.hasPassword}
+      />
     </>
   );
 }

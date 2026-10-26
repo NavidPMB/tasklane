@@ -51,9 +51,16 @@ export type Ticket = {
   jira: { key: string; url: string } | null;
   clickup: { key: string; url: string } | null;
   logged_minutes: number;
+  custom_fields: Record<string, unknown>;
+  comment_count: number;
+  attachment_count: number;
+  checklist_total: number;
+  checklist_done: number;
+  web_url: string;
 };
 export type ProjectData = {
   project: Project;
+  custom_fields: FieldDefinition[];
   categories: Category[];
   statuses: Status[];
   members: Person[];
@@ -119,4 +126,60 @@ export async function workAction<T>(
   });
   const body = await readResponse(response);
   return body.result as T;
+}
+
+export type FieldDefinition = {
+  id: number;
+  key: string;
+  name: string;
+  kind:
+    | "text"
+    | "textarea"
+    | "number"
+    | "date"
+    | "boolean"
+    | "select"
+    | "multiselect"
+    | "url";
+  scope: "ticket" | "project";
+  options: string[];
+  required: boolean;
+  archived: boolean;
+  position: number;
+  project_value: unknown;
+  updated_at: string;
+};
+
+export async function sessionPost<T>(
+  path: string,
+  args: Record<string, unknown>,
+): Promise<T> {
+  const session = await workFetch<{ csrfToken: string }>("/api/auth/session/");
+  return readResponse(
+    await fetch(path, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": session.csrfToken,
+      },
+      body: JSON.stringify(args),
+    }),
+  ) as Promise<T>;
+}
+
+export async function uploadFile<T>(
+  projectId: number,
+  ticketId: number,
+  file: File,
+  commentId?: number,
+): Promise<T> {
+  const session = await workFetch<{ csrfToken: string }>("/api/auth/session/");
+  const body = new FormData();
+  body.set("file", file);
+  if (commentId) body.set("comment_id", String(commentId));
+  const response = await fetch(
+    `/api/work/projects/${projectId}/tickets/${ticketId}/attachments/`,
+    { method: "POST", headers: { "X-CSRFToken": session.csrfToken }, body },
+  );
+  return (await readResponse(response)).result as T;
 }

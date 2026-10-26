@@ -1,0 +1,89 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Initialize .env.production}
+      POSTGRES_USER: ${POSTGRES_USER:?Initialize .env.production}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Initialize .env.production}
+    volumes:
+      - production_database:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    image: ghcr.io/navidpmb/tasklane-backend:${TASKLANE_VERSION:-0.2.0}
+    build:
+      context: .
+      dockerfile: deploy/backend.Dockerfile
+    restart: unless-stopped
+    env_file: ${TASKLANE_ENV_FILE:-.env.production}
+    environment:
+      DJANGO_DEBUG: "false"
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      PRIVATE_FILE_ROOT: /data/private
+      STATIC_ROOT: /data/static
+    volumes:
+      - production_files:/data/private
+      - production_static:/data/static
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; r=urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8010/api/health/', headers={'Host':'backend','X-Forwarded-Proto':'https'}), timeout=4); assert r.status==200"]
+      interval: 10s
+      timeout: 5s
+      start_period: 45s
+      retries: 12
+    stop_grace_period: 40s
+
+  frontend:
+    image: ghcr.io/navidpmb/tasklane-frontend:${TASKLANE_VERSION:-0.2.0}
+    build:
+      context: .
+      dockerfile: deploy/frontend.Dockerfile
+    restart: unless-stopped
+    environment:
+      PUBLIC_URL: https://${TASKLANE_DOMAIN}
+      BACKEND_URL: http://backend:8010
+      HOSTNAME: 0.0.0.0
+      PORT: "3010"
+      NODE_ENV: production
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3010/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 8s
+      start_period: 30s
+      retries: 12
+
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      TASKLANE_DOMAIN: ${TASKLANE_DOMAIN:?Set your public domain}
+    ports:
+      - "${TASKLANE_BIND_ADDRESS:-0.0.0.0}:${TASKLANE_HTTP_PORT:-80}:80"
+      - "${TASKLANE_BIND_ADDRESS:-0.0.0.0}:${TASKLANE_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - production_static:/data/static:ro
+      - production_certificates:/data
+      - production_caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+
+volumes:
+  production_database:
+  production_files:
+  production_static:
+  production_certificates:
+  production_caddy_config:

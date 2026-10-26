@@ -65,6 +65,13 @@ DATABASES["default"]["CONN_MAX_AGE"] = 60
 DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 DATABASES["default"]["OPTIONS"] = {"connect_timeout": 5}
 
+# Gemeinsame Login-Limits für alle Produktionsprozesse, ohne zusätzlichen Dienst.
+if not DEBUG:
+    CACHES = {"default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "tasklane_cache",
+    }}
+
 AUTH_USER_MODEL = "accounts.User"
 AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",
@@ -118,6 +125,16 @@ TIME_ZONE = "Europe/Berlin"
 USE_I18N = True
 USE_TZ = True
 STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_ROOT = Path(env("STATIC_ROOT", default=str(BASE_DIR / "staticfiles")))
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+# Private Anhänge werden niemals als öffentliche Medien ausgeliefert.
+PRIVATE_FILE_ROOT = Path(env('PRIVATE_FILE_ROOT', default=str(BASE_DIR / 'media' / 'private')))
+ATTACHMENT_MAX_BYTES = env.int('ATTACHMENT_MAX_BYTES', default=50 * 1024 * 1024)
+ATTACHMENT_TICKET_MAX_BYTES = env.int('ATTACHMENT_TICKET_MAX_BYTES', default=1024 * 1024 * 1024)
+FILE_UPLOAD_MAX_MEMORY_SIZE = 128 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
+DATA_UPLOAD_MAX_NUMBER_FILES = 1
+
+INTEGRATION_ALLOWED_ORIGINS = env.list('INTEGRATION_ALLOWED_ORIGINS', default=[PUBLIC_URL])

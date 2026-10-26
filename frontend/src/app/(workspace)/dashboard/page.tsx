@@ -6,6 +6,7 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<{
     project?: string;
+    ticket?: string;
     workspace?: string;
     notice?: string;
   }>;
@@ -23,6 +24,7 @@ export default async function DashboardPage({
         userId={user.id}
         initialWorkspace={Number(params.workspace) || undefined}
         initialProject={Number(params.project) || undefined}
+        initialTicket={Number(params.ticket) || undefined}
       />
     </>
   );

@@ -6,6 +6,7 @@ from django.views.generic import RedirectView
 from accounts.views import google_login
 
 urlpatterns = [
+    path("api/v1/", include("modules.work.api.urls")),
     path("django-admin/", admin.site.urls),
     path("accounts/login/", RedirectView.as_view(url=settings.LOGIN_URL)),
     path("accounts/google/login/", google_login, name="google_login_start"),

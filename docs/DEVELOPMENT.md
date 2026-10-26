@@ -46,7 +46,7 @@ Die Migrationen `work.0008` und `0009` ergänzen Quellmodelle und Zeit-Constrain
 
 Die Authentifizierung verwendet den bestehenden allauth-Adapter mit den konfigurierten Django-Backends. E-Mail-Adressen werden normalisiert. Unbekannte Konten, falsche Passwörter, deaktivierte Konten und Konten ohne Passwort liefern dieselbe Fehlermeldung (`401`). allauth begrenzt fehlgeschlagene Versuche je E-Mail und IP und liefert bei Überschreitung `429`. Die vorhandene Google-Anmeldung bleibt erhalten; allauth-eigene Passwort-/Registrierungsseiten bleiben durch `SOCIALACCOUNT_ONLY` deaktiviert. Die Tasklane-Passwortanmeldung ist der explizite API-Einstieg für bestehende Konten.
 
-Neue Konten über `createsuperuser` oder die vorhandene Benutzerverwaltung anlegen und Passwörter mit Djangos `changepassword` setzen. Keine Zugangsdaten in Quellcode, Dokumentation, Migrationen oder Beispieldateien hinterlegen. Der lokale Einprozessbetrieb verwendet Djangos Standardcache für Rate-Limits; bei mehreren Backend-Prozessen einen gemeinsamen Django-Cache konfigurieren, damit die Limits über alle Prozesse gelten.
+Neue Konten über `createsuperuser` oder die vorhandene Benutzerverwaltung anlegen und Passwörter mit Djangos `changepassword` setzen. Keine Zugangsdaten in Quellcode, Dokumentation, Migrationen oder Beispieldateien hinterlegen. Die Entwicklung verwendet Djangos lokalen Speichercache. In Produktion wird der gemeinsame PostgreSQL-Cache verwendet; der Container-Entrypoint erstellt dessen Tabelle idempotent mit `createcachetable`. Bei manuellem Produktionsbetrieb diesen Befehl nach den Migrationen ausführen.
 
 `accounts.tests.PasswordLoginTests` prüft Anmeldung, Normalisierung, CSRF, Fremd-Origins, Rollen, Sitzungsrotation, Abmeldung, Eingabevalidierung und Rate-Limits. Danach `make test` und `make check` ausführen.
 
@@ -79,3 +79,11 @@ Migration `wiki.0002_google_live_guide` enthält einen eingefrorenen Snapshot di
 ## Frontend-Konfiguration beim Build
 
 Dev-Server, Build und Produktionsstart verwenden denselben Environment-Loader in `frontend/scripts/serve.mjs`. Er lädt die `.env` im Projektstamm vor dem Next.js-Prozess. `BACKEND_URL` wird für Proxy-Rewrites beim Build ausgewertet; nach einer Änderung neu bauen. Bei Änderungen am Startskript einen Produktionsbuild und den API-Proxy mit einem abweichenden Backend-Port prüfen.
+
+## Eigenständiger Dienst ab 0.2.0
+
+Die [technische Anleitung](development/standalone-service.md) beschreibt die 63 gemeinsamen Aktionen, Kommentare, Checklisten, typisierte Projekt-/Ticketfelder, Aktivitäten, private Dateien, persönliche Integrationsschlüssel und Remote-MCP unter ASGI. Die [Benutzerhilfe](ticket-collaboration.md), [API-/MCP-Anleitung](api.md) und [Betriebsanleitung](production.md) erklären die vollständigen Abläufe. Profil und Passwort werden über die vorhandene Sitzung und CSRF-Prüfung verwaltet.
+
+`make release-smoke` prüft eine isolierte Docker-Installation tatsächlich über HTTPS, inklusive Anmeldung, Dateiübertragung, API/MCP, Widerruf und Persistenz nach Neustart. Die Release-Pipeline wiederholt CI vor der Veröffentlichung numerisch versionierter Images und Quellarchive. `VERSION`, Frontend-Version und Release-Hinweise gemeinsam pflegen. Die Anwendung erhält eigene Releases; LeonLab-Anbindung und separate Legacy-Migration sind nachgelagerte Arbeiten.
+
+Migration `work.0012_standalone_guides` ergänzt eingefrorene registrierte Benutzer-/Integrationshilfe sowie interne Betriebs-/Entwicklerartikel im gemeinsamen Wiki. Bestehende Artikel bleiben erhalten. Interne Inhalte sind ausschließlich für aktive Superuser sichtbar.

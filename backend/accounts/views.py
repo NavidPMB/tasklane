@@ -57,3 +57,42 @@ def google_login(request):
     if not google_login_enabled():
         return redirect(f"{settings.LOGIN_URL}?error=google-not-configured")
     return oauth2_login(request)
+
+
+@require_POST
+@sensitive_post_parameters('current_password', 'new_password', 'confirm_password')
+@sensitive_variables('payload', 'current_password', 'new_password')
+def account_update(request):
+    from django.contrib.auth import update_session_auth_hash
+    from django.contrib.auth.password_validation import validate_password
+    if not request.user.is_authenticated or not request.user.is_active:
+        return JsonResponse({'error': 'Anmeldung erforderlich.'}, status=401)
+    if request.content_type != 'application/json': return JsonResponse({'error': 'JSON-Anfrage erforderlich.'}, status=415)
+    if len(request.body) > 16384: return JsonResponse({'error': 'Anfrage zu groß.'}, status=413)
+    try: payload = json.loads(request.body)
+    except (ValueError, UnicodeDecodeError): return JsonResponse({'error': 'Ungültiges JSON.'}, status=400)
+    if not isinstance(payload, dict): return JsonResponse({'error': 'JSON-Objekt erforderlich.'}, status=400)
+    if set(payload) == {'first_name', 'last_name'}:
+        if any(not isinstance(value, str) or len(value) > 150 for value in payload.values()):
+            return JsonResponse({'error': 'Namen dürfen höchstens 150 Zeichen enthalten.'}, status=400)
+        request.user.first_name=payload['first_name'].strip();request.user.last_name=payload['last_name'].strip()
+        request.user.save(update_fields=['first_name','last_name'])
+        return JsonResponse({'ok': True})
+    if set(payload) != {'current_password', 'new_password', 'confirm_password'} or any(not isinstance(value, str) or len(value)>4096 for value in payload.values()):
+        return JsonResponse({'error': 'Ungültige Parameter.'}, status=400)
+    current_password=payload['current_password'];new_password=payload['new_password']
+    if not request.user.has_usable_password():
+        return JsonResponse({'error': 'Dieses Konto nutzt die externe Anmeldung. Ein Passwort kann die Kontoverwaltung einrichten.'}, status=400)
+    try:
+        user=get_adapter(request).authenticate(request,email=request.user.email,password=current_password)
+    except ValidationError:
+        return JsonResponse({'error': 'Zu viele Versuche. Bitte später erneut versuchen.'},status=429)
+    if user is None or user.pk != request.user.pk:
+        return JsonResponse({'error': 'Das aktuelle Passwort ist nicht korrekt.'},status=400)
+    if new_password != payload['confirm_password']:
+        return JsonResponse({'error': 'Die neuen Passwörter stimmen nicht überein.'},status=400)
+    try: validate_password(new_password,user=request.user)
+    except ValidationError as error: return JsonResponse({'error': ' '.join(error.messages)},status=400)
+    request.user.set_password(new_password);request.user.save(update_fields=['password'])
+    update_session_auth_hash(request,request.user)
+    return JsonResponse({'ok': True})

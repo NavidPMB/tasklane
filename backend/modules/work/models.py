@@ -225,3 +225,116 @@ class ClickUpImportBatch(models.Model):
     expires_at = models.DateTimeField()
     imported_at = models.DateTimeField(null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class Comment(models.Model):
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='comments')
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True)
+    original_author = models.CharField(max_length=254, blank=True)
+    body = models.TextField()
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['created_at', 'id']
+
+
+class Checklist(models.Model):
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='checklists')
+    name = models.CharField(max_length=120)
+    position = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['position', 'id']
+
+
+class ChecklistItem(models.Model):
+    checklist = models.ForeignKey(Checklist, on_delete=models.CASCADE, related_name='items')
+    title = models.CharField(max_length=500)
+    done = models.BooleanField(default=False)
+    position = models.PositiveIntegerField(default=0)
+    assignee = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['position', 'id']
+
+
+class CustomField(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='custom_fields')
+    key = models.SlugField(max_length=60)
+    name = models.CharField(max_length=120)
+    kind = models.CharField(max_length=20, choices=[(k, k) for k in ['text', 'textarea', 'number', 'date', 'boolean', 'select', 'multiselect', 'url']])
+    scope = models.CharField(max_length=10, choices=[('ticket', 'Ticket'), ('project', 'Projekt')], default='ticket')
+    options = models.JSONField(default=list)
+    required = models.BooleanField(default=False)
+    position = models.PositiveIntegerField(default=0)
+    archived = models.BooleanField(default=False)
+    project_value = models.JSONField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['position', 'id']
+        constraints = [models.UniqueConstraint(fields=['project', 'key'], name='work_field_key_unique')]
+
+
+class TicketFieldValue(models.Model):
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='field_values')
+    field = models.ForeignKey(CustomField, on_delete=models.PROTECT, related_name='ticket_values')
+    value = models.JSONField(null=True, blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['ticket', 'field'], name='work_ticket_field_unique')]
+
+
+class Attachment(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='attachments')
+    comment = models.ForeignKey(Comment, on_delete=models.SET_NULL, null=True, blank=True, related_name='attachments')
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    filename = models.CharField(max_length=240)
+    content_type = models.CharField(max_length=150, default='application/octet-stream')
+    size = models.PositiveBigIntegerField()
+    received = models.PositiveBigIntegerField(default=0)
+    sha256 = models.CharField(max_length=64, blank=True)
+    expected_sha256 = models.CharField(max_length=64, blank=True)
+    state = models.CharField(max_length=12, default='uploading', choices=[('uploading', 'Upload'), ('ready', 'Verfügbar'), ('deleted', 'Gelöscht')])
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['created_at', 'id']
+
+
+class Activity(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='activities')
+    ticket = models.ForeignKey(Ticket, on_delete=models.SET_NULL, null=True, blank=True, related_name='activities')
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    original_actor = models.CharField(max_length=254, blank=True)
+    kind = models.CharField(max_length=80)
+    summary = models.CharField(max_length=500)
+    data = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [models.Index(fields=['project', 'created_at'], name='work_activity_project_date')]
+
+
+class ApiToken(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='tasklane_tokens')
+    credential = models.OneToOneField('integrations.IntegrationCredential', on_delete=models.PROTECT)
+    name = models.CharField(max_length=120)
+    digest = models.CharField(max_length=64, unique=True)
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, null=True, blank=True)
+    scope = models.CharField(max_length=10, choices=[('read', 'Lesen'), ('write', 'Schreiben'), ('manage', 'Verwalten')])
+    audience = models.URLField(max_length=500)
+    expires_at = models.DateTimeField()
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)

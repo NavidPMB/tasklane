@@ -4,13 +4,15 @@ import csv
 from io import StringIO
 import re
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Q, OuterRef, Subquery, Value, IntegerField
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from jsonschema import Draft202012Validator
 
-from .models import Project, Status, Tag, Ticket, TimeEntry, Workspace, ClickUpPerson
+from .models import Project, Status, Tag, Ticket, TimeEntry, Workspace, ClickUpPerson, Comment, Attachment, ChecklistItem
 
 from .time_values import minute_sum, external_person_data
 from .errors import WorkError
@@ -53,7 +55,16 @@ def statuses_for(project):
 
 
 def ticket_query(project):
-    return project.tickets.select_related('project', 'jira_source__connection', 'clickup_source').prefetch_related('tags', 'assignees').annotate(logged_minutes=minute_sum('time_entries__'))
+    def counter(model, path, **filters):
+        rows = model.objects.filter(**{path: OuterRef('pk'), **filters}).order_by().values(path).annotate(n=Count('pk')).values('n')
+        return Coalesce(Subquery(rows, output_field=IntegerField()), Value(0))
+    return project.tickets.select_related('project', 'jira_source__connection', 'clickup_source').prefetch_related('tags', 'assignees', 'field_values__field').annotate(
+        logged_minutes=minute_sum('time_entries__'),
+        comments_total=counter(Comment, 'ticket_id', deleted_at__isnull=True),
+        attachments_total=counter(Attachment, 'ticket_id', state='ready'),
+        checklist_items_total=counter(ChecklistItem, 'checklist__ticket_id'),
+        checklist_items_done=counter(ChecklistItem, 'checklist__ticket_id', done=True),
+    )
 
 
 def ticket_data(ticket):
@@ -61,6 +72,7 @@ def ticket_data(ticket):
     return {
         'id': ticket.pk, 'key': f'{ticket.project.key}-{ticket.number}',
         'project_id': ticket.project_id, 'title': ticket.title,
+        'web_url': f'{settings.PUBLIC_URL}/dashboard?workspace={ticket.project.workspace_id}&project={ticket.project_id}&ticket={ticket.pk}',
         'description': ticket.description, 'kind': ticket.kind, 'parent_id': ticket.parent_id,
         'status_id': ticket.status_id, 'assignee_ids': [u.pk for u in ticket.assignees.all()],
         'tag_ids': [t.pk for t in ticket.tags.all()], 'priority': ticket.priority,
@@ -68,6 +80,11 @@ def ticket_data(ticket):
         'created_at': ticket.created_at.isoformat(), 'updated_at': ticket.updated_at.isoformat(),
         'jira': jira_ticket_source(ticket),
         'clickup': clickup_ticket_source(ticket),
+        'custom_fields': {v.field.key: v.value for v in ticket.field_values.all()},
+        'comment_count': getattr(ticket, 'comments_total', None) if getattr(ticket, 'comments_total', None) is not None else ticket.comments.filter(deleted_at__isnull=True).count(),
+        'attachment_count': getattr(ticket, 'attachments_total', None) if getattr(ticket, 'attachments_total', None) is not None else ticket.attachments.filter(state='ready').count(),
+        'checklist_total': getattr(ticket, 'checklist_items_total', None) if getattr(ticket, 'checklist_items_total', None) is not None else ChecklistItem.objects.filter(checklist__ticket=ticket).count(),
+        'checklist_done': getattr(ticket, 'checklist_items_done', None) if getattr(ticket, 'checklist_items_done', None) is not None else ChecklistItem.objects.filter(checklist__ticket=ticket, done=True).count(),
         'logged_minutes': logged_minutes if logged_minutes is not None else ticket.time_entries.aggregate(total=minute_sum())['total'],
     }
 
@@ -130,10 +147,12 @@ def create_project(user, name, key, description='', workspace_id=None):
 
 
 def get_project(user, project_id):
+    from .collaboration import field_data
     project = project_for(user, project_id)
     inherited = set(project.workspace.members.values_list('id', flat=True)) | {project.workspace.owner_id}
     return {
         'project': project_data(project, user), 'categories': CATEGORIES,
+        'custom_fields': [field_data(f) for f in project.custom_fields.all()],
         'statuses': [status_data(s) for s in statuses_for(project)],
         'members': [{**person(u), 'inherited': u.pk in inherited} for u in project_members(project)],
         'tags': list(project.tags.values('id', 'name')),
@@ -264,11 +283,15 @@ def list_tickets(user, project_id, query='', status_id=None, assignee_id=None, t
 
 
 def get_ticket(user, project_id, ticket_id):
-    ticket = related(project_for(user, project_id), 'tickets', ticket_id, 'Ticket')
+    ticket = ticket_query(project_for(user, project_id)).filter(pk=ticket_id).first()
+    if not ticket: raise WorkError('Ticket nicht gefunden.', 404)
     return ticket_data(ticket)
 
 
 def set_ticket_fields(project, ticket, fields):
+    from .collaboration import set_ticket_values
+    creating = ticket.pk is None
+    custom_values = fields.pop('custom_fields', {})
     for field in ['title', 'description', 'kind', 'priority']:
         if field in fields:
             setattr(ticket, field, nonblank(fields[field]) if field == 'title' else fields[field])
@@ -300,6 +323,7 @@ def set_ticket_fields(project, ticket, fields):
         if len(tags) != len(fields['tag_ids']):
             raise WorkError('Alle Tags müssen zum Projekt gehören.')
     ticket.save()
+    set_ticket_values(ticket, custom_values, creating=creating)
     if members is not None:
         ticket.assignees.set(members)
     if tags is not None:
@@ -314,6 +338,8 @@ def create_ticket(user, project_id, title, **fields):
     result = set_ticket_fields(project, ticket, {'title': title, **fields})
     project.next_number += 1
     project.save(update_fields=['next_number'])
+    from .collaboration import event
+    event(user, project, ticket, 'ticket_created', 'Ticket erstellt: ' + ticket.title)
     return result
 
 
@@ -323,7 +349,11 @@ def update_ticket(user, project_id, ticket_id, **fields):
     expected = fields.pop('expected_updated_at', None)
     if expected is not None and expected != ticket.updated_at.isoformat():
         raise WorkError('Dieses Ticket wurde inzwischen geändert. Bitte schließen und erneut öffnen.', 409)
-    return set_ticket_fields(project, ticket, fields)
+    changed_fields = list(fields)
+    result = set_ticket_fields(project, ticket, fields)
+    from .collaboration import event
+    event(user, project, ticket, 'ticket_updated', 'Ticket geändert', fields=changed_fields)
+    return result
 
 
 def delete_ticket(user, project_id, ticket_id):
@@ -332,6 +362,10 @@ def delete_ticket(user, project_id, ticket_id):
         raise WorkError('Zuerst untergeordnete Tickets umhängen oder löschen.')
     if ticket.time_entries.exists():
         raise WorkError('Tickets mit Zeitbuchungen bleiben für die Berichte erhalten. Bitte stattdessen schließen.')
+    from .collaboration import event
+    from .attachments import delete_file_after_commit
+    for attachment in ticket.attachments.all(): delete_file_after_commit(attachment)
+    event(user, ticket.project, None, 'ticket_deleted', 'Ticket entfernt: ' + ticket.title, ticket_id=ticket.pk)
     ticket.delete()
     return {'deleted': True}
 
@@ -365,8 +399,10 @@ def validate_time_fields(work_date):
 
 
 def create_time_entry(user, project_id, ticket_id, work_date, minutes, note=''):
+    from .collaboration import event
     ticket = related(project_for(user, project_id), 'tickets', ticket_id, 'Ticket')
     entry = TimeEntry.objects.create(ticket=ticket, user=user, work_date=validate_time_fields(work_date), minutes=minutes, note=note.strip())
+    event(user, ticket.project, ticket, 'time_created', 'Arbeitszeit erfasst', entry_id=entry.pk, minutes=minutes, work_date=entry.work_date.isoformat())
     return time_entry_data(entry, user)
 
 
@@ -385,6 +421,7 @@ def own_time_entry(user, project_id, entry_id, expected_updated_at=None):
 
 
 def update_time_entry(user, project_id, entry_id, work_date=None, minutes=None, note=None, expected_updated_at=None):
+    from .collaboration import event
     entry = own_time_entry(user, project_id, entry_id, expected_updated_at)
     if work_date is not None:
         entry.work_date = validate_time_fields(work_date)
@@ -393,11 +430,15 @@ def update_time_entry(user, project_id, entry_id, work_date=None, minutes=None, 
     if note is not None:
         entry.note = note.strip()
     entry.save()
+    event(user, entry.ticket.project, entry.ticket, 'time_updated', 'Arbeitszeit korrigiert', entry_id=entry.pk, minutes=entry.minutes, work_date=entry.work_date.isoformat())
     return time_entry_data(entry, user)
 
 
 def delete_time_entry(user, project_id, entry_id, expected_updated_at=None):
-    own_time_entry(user, project_id, entry_id, expected_updated_at).delete()
+    from .collaboration import event
+    entry = own_time_entry(user, project_id, entry_id, expected_updated_at)
+    event(user, entry.ticket.project, entry.ticket, 'time_deleted', 'Arbeitszeit entfernt', entry_id=entry.pk, minutes=entry.minutes, work_date=entry.work_date.isoformat())
+    entry.delete()
     return {'deleted': True}
 
 
@@ -483,6 +524,7 @@ NULL_ID = {'anyOf': [ID, {'type': 'null'}]}
 CATEGORY = {'type': 'string', 'enum': list(Status.Category.values)}
 POSITION = {'type': 'integer', 'minimum': 1, 'maximum': 100000}
 TICKET_FIELDS = {
+    'custom_fields': {'type': 'object', 'maxProperties': 100, 'propertyNames': {'pattern': r'^[a-z][a-z0-9_]{0,59}$'}},
     'title': NAME(200), 'description': TEXT(20000), 'kind': {'type': 'string', 'enum': list(Ticket.Kind.values)},
     'parent_id': NULL_ID, 'status_id': ID, 'assignee_ids': IDS, 'tag_ids': IDS,
     'priority': {'type': 'string', 'enum': list(Ticket.Priority.values)},
@@ -568,3 +610,8 @@ register_jira(register, ID, NAME, TEXT)
 
 from .clickup import register_operations as register_clickup
 register_clickup(register, ID, NAME, TEXT)
+
+from .collaboration import register_operations as register_collaboration
+from .attachments import register_operations as register_attachments
+register_collaboration(register, ID, NAME, TEXT)
+register_attachments(register, ID, NAME, TEXT)

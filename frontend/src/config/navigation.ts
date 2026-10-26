@@ -22,7 +22,7 @@ export const navigation: Record<
       { href: "/dashboard/clickup", label: "ClickUp-Import", icon: "clock" },
       { href: "/dashboard/projects", label: "Projekte", icon: "layers" },
       { href: "/dashboard/time", label: "Zeiten & Berichte", icon: "clock" },
-      { href: "/dashboard/mcp", label: "MCP-Anbindung", icon: "terminal" },
+      { href: "/dashboard/mcp", label: "API & MCP", icon: "terminal" },
       { href: "/dashboard/account", label: "Mein Konto", icon: "user" },
     ],
   },

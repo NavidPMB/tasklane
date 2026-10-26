@@ -9,6 +9,9 @@ import {
 import { WorkDialog } from "./dialog";
 import { TicketTime } from "./ticket-time";
 import { formatMinutes } from "@/lib/time";
+import { TicketCollaboration } from "./ticket-collaboration";
+import { FieldInput } from "./custom-fields";
+import ReactMarkdown from "react-markdown";
 
 export function TicketForm({
   data,
@@ -18,7 +21,9 @@ export function TicketForm({
   initialKind,
   onClose,
   onSaved,
+  userId,
 }: {
+  userId: number;
   data: ProjectData;
   ticket?: Ticket;
   parentId?: number;
@@ -29,6 +34,19 @@ export function TicketForm({
 }) {
   const [kind, setKind] = useState(ticket?.kind || initialKind || "ticket");
   const [tab, setTab] = useState("details");
+  const [description, setDescription] = useState(ticket?.description || "");
+  const [customValues, setCustomValues] = useState<Record<string, unknown>>(
+    () =>
+      Object.fromEntries(
+        data.custom_fields
+          .filter((f) => f.scope === "ticket" && !f.archived)
+          .map((f) => [
+            f.key,
+            ticket?.custom_fields[f.key] ??
+              (f.kind === "boolean" ? false : null),
+          ]),
+      ),
+  );
   const loggedMinutes =
     data.tickets.find((t) => t.id === ticket?.id)?.logged_minutes || 0;
   const [parent, setParent] = useState(
@@ -70,7 +88,8 @@ export function TicketForm({
       const args = {
         project_id: data.project.id,
         title: form.get("title"),
-        description: form.get("description"),
+        description,
+        custom_fields: customValues,
         kind,
         parent_id: kind === "epic" ? null : parent ? Number(parent) : null,
         status_id: Number(form.get("status_id")),
@@ -135,6 +154,21 @@ export function TicketForm({
           >
             Ticketdetails
           </button>
+          {[
+            ["checklists", "Checklisten"],
+            ["comments", "Kommentare"],
+            ["files", "Anhänge"],
+            ["activity", "Verlauf"],
+          ].map(([id, label]) => (
+            <button
+              type="button"
+              key={id}
+              className={tab === id ? "active" : ""}
+              onClick={() => setTab(id)}
+            >
+              {label}
+            </button>
+          ))}
           <button
             type="button"
             className={tab === "time" ? "active" : ""}
@@ -183,12 +217,21 @@ export function TicketForm({
             Beschreibung
             <textarea
               name="description"
-              defaultValue={ticket?.description}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
               rows={5}
               maxLength={20000}
               placeholder="Kontext, Ziel und nächste Schritte …"
             />
           </label>
+          <details className="tl-description-preview">
+            <summary>Beschreibung als Markdown ansehen</summary>
+            <div className="tl-markdown">
+              <ReactMarkdown skipHtml components={{ img: () => null }}>
+                {description || "Noch keine Beschreibung."}
+              </ReactMarkdown>
+            </div>
+          </details>
           <div className="tl-form-grid">
             <label>
               Typ
@@ -302,6 +345,37 @@ export function TicketForm({
               </p>
             )}
           </fieldset>
+          {data.custom_fields.some(
+            (f) => f.scope === "ticket" && !f.archived,
+          ) && (
+            <fieldset className="tl-form">
+              <legend>Eigene Felder</legend>
+              {data.custom_fields
+                .filter((f) => f.scope === "ticket" && !f.archived)
+                .map((f) => (
+                  <FieldInput
+                    key={f.id}
+                    field={f}
+                    value={customValues[f.key]}
+                    onChange={(value) =>
+                      setCustomValues((old) => ({ ...old, [f.key]: value }))
+                    }
+                  />
+                ))}
+            </fieldset>
+          )}
+          {data.custom_fields
+            .filter(
+              (f) =>
+                f.scope === "ticket" &&
+                f.archived &&
+                ticket?.custom_fields[f.key] != null,
+            )
+            .map((f) => (
+              <p className="tl-hint" key={f.id}>
+                {f.name} (archiviert): {String(ticket?.custom_fields[f.key])}
+              </p>
+            ))}
           {children.length > 0 && (
             <div className="tl-child-summary">
               <strong>
@@ -343,6 +417,16 @@ export function TicketForm({
           </div>
         </form>
       </div>
+      {ticket && (
+        <TicketCollaboration
+          data={data}
+          ticket={ticket}
+          tab={tab}
+          userId={userId}
+          onSaved={onSaved}
+          onTab={setTab}
+        />
+      )}
       {ticket && (
         <div hidden={tab !== "time"}>
           <TicketTime ticket={ticket} onSaved={onSaved} />

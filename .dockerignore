@@ -1,0 +1,17 @@
+.git
+.env
+.env.*
+.venv
+**/node_modules
+**/.next
+**/__pycache__
+**/*.pyc
+backend/media
+backend/staticfiles
+*.sql
+*.dump
+*.sqlite3
+*.pem
+*.key
+playwright-report
+test-results
